@@ -1,41 +1,48 @@
-import type { AntiBot, EligibilityResult, TwitterUser } from "@/types";
+import type { EligibilityRule, EligibilityCheck } from "@/types";
+import { getTokenBalance } from "./alchemy";
+import { getPuzzleWins } from "./qrbase-api";
 
-export function checkEligibility(user: TwitterUser, rules: AntiBot): EligibilityResult {
-  const accountAge = Math.floor(
-    (Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24)
-  );
+export async function evaluateEligibility(
+  rules: EligibilityRule[],
+  twitterId: string,
+  walletAddress: string
+): Promise<{ eligible: boolean; checks: EligibilityCheck[] }> {
+  const checks: EligibilityCheck[] = [];
+  let allPassed = true;
 
-  if (accountAge < rules.minAccountAgeDays) {
-    return {
-      eligible: false,
-      reason: `Account must be at least ${rules.minAccountAgeDays} days old (yours is ${accountAge} days)`,
-      failedRule: "minAccountAgeDays",
-    };
+  for (const rule of rules) {
+    if (rule.type === "puzzle_wins") {
+      const wins = await getPuzzleWins(twitterId, rule.token);
+      const passed = wins >= rule.min;
+      if (!passed) allPassed = false;
+
+      checks.push({
+        rule: `$${rule.token} Puzzle Wins`,
+        passed,
+        current: wins,
+        required: rule.min,
+      });
+    } else if (rule.type === "token_balance") {
+      const tokenAddress =
+        process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
+
+      const { balance, decimals } = await getTokenBalance(
+        tokenAddress,
+        walletAddress
+      );
+
+      const balanceInTokens = Number(balance) / 10 ** decimals;
+      const passed = balanceInTokens >= rule.min;
+      if (!passed) allPassed = false;
+
+      checks.push({
+        rule: `$${rule.token} Balance`,
+        passed,
+        current: Math.floor(balanceInTokens),
+        required: rule.min,
+      });
+    }
   }
 
-  if (user.public_metrics.followers_count < rules.minFollowers) {
-    return {
-      eligible: false,
-      reason: `Must have at least ${rules.minFollowers} followers (you have ${user.public_metrics.followers_count})`,
-      failedRule: "minFollowers",
-    };
-  }
-
-  if (user.public_metrics.following_count < rules.minFollowing) {
-    return {
-      eligible: false,
-      reason: `Must be following at least ${rules.minFollowing} accounts (you follow ${user.public_metrics.following_count})`,
-      failedRule: "minFollowing",
-    };
-  }
-
-  if (rules.requireVerified && !user.verified) {
-    return {
-      eligible: false,
-      reason: "Must be a verified account",
-      failedRule: "requireVerified",
-    };
-  }
-
-  return { eligible: true };
+  return { eligible: allPassed, checks };
 }

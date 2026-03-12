@@ -1,44 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/db";
+import { verifyPrivyToken } from "@/lib/privy";
+import type { RewardTier } from "@/types";
 
-// POST /api/campaigns/[id]/claim — Record claim in DB after on-chain confirmation
+// POST /api/campaigns/[id]/claim — Record claim after on-chain success
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const user = await verifyPrivyToken(req.headers.get("authorization"));
+    if (!user || !user.twitterId) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
     }
 
-    const { walletAddress, twitterId, amount, txHash } = await req.json();
+    const { walletAddress, txHash } = await req.json();
 
-    if (!walletAddress || !twitterId || !amount || !txHash) {
+    if (!walletAddress || !txHash) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const twitterHandle = (session.user as { username?: string }).username ||
-      session.user.name || "unknown";
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: { claims: { orderBy: { slotNumber: "asc" } } },
+    });
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: "Campaign not found" },
+        { status: 404 }
+      );
+    }
+
+    const slotNumber = campaign.claims.length + 1;
+    const tiers = campaign.tiers as RewardTier[];
+    let usdcAmount: bigint;
+
+    if (tiers.length === 1) {
+      usdcAmount = BigInt(tiers[0].amount);
+    } else {
+      usdcAmount = BigInt(tiers[slotNumber - 1]?.amount || 0);
+    }
 
     const claim = await prisma.claim.create({
       data: {
         campaignId: params.id,
-        twitterId,
-        twitterHandle,
+        twitterId: user.twitterId,
+        twitterHandle: user.twitterHandle || "unknown",
         walletAddress: walletAddress.toLowerCase(),
-        amount: BigInt(amount),
+        usdcAmount,
+        slotNumber,
         txHash,
       },
     });
 
+    // Check if campaign is now full
+    if (slotNumber >= campaign.maxRecipients) {
+      await prisma.campaign.update({
+        where: { id: params.id },
+        data: { isActive: false, closedAt: new Date() },
+      });
+    }
+
     return NextResponse.json({
-      claim: { ...claim, amount: claim.amount.toString() },
+      claim: {
+        ...claim,
+        usdcAmount: claim.usdcAmount.toString(),
+      },
+      slotsRemaining: campaign.maxRecipients - slotNumber,
     });
   } catch (error) {
     console.error("Record claim error:", error);

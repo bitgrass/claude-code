@@ -9,21 +9,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0a0a",
+        background: "#FFFFFF",
         surface: {
-          DEFAULT: "#141414",
-          light: "#1a1a1a",
+          DEFAULT: "#FFFFFF",
+          muted: "#F8FAFC",
+        },
+        border: "#E2E8F0",
+        primary: {
+          DEFAULT: "#3B82F6",
+          dark: "#2563EB",
         },
         accent: {
-          DEFAULT: "#f59e0b",
-          orange: "#fb923c",
+          purple: "#8B5CF6",
         },
-        muted: "#9ca3af",
-        success: "#10b981",
-        error: "#ef4444",
+        muted: "#64748B",
+        success: "#10B981",
+        error: "#EF4444",
+        warning: "#F59E0B",
       },
       fontFamily: {
-        sans: ["Inter", "Geist", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
       },
     },
   },

@@ -1,29 +1,28 @@
-export enum SplitType {
-  EQUAL = "EQUAL",
-  RANDOM = "RANDOM",
+export interface EligibilityRule {
+  type: "puzzle_wins" | "token_balance";
+  token: string;
+  min: number;
 }
 
-export interface AntiBot {
-  minAccountAgeDays: number;
-  minFollowers: number;
-  minFollowing: number;
-  requireVerified: boolean;
+export interface RewardTier {
+  position: number;
+  amount: number; // USDC in 6 decimals
 }
 
 export interface CampaignData {
   id: string;
   onChainId: number;
-  creatorWallet: string;
-  creatorTwitter: string | null;
-  totalAmount: bigint;
+  name: string;
+  tokenSymbol: string;
+  tokenAddress: string;
+  totalUsdc: string;
   maxRecipients: number;
-  splitType: SplitType;
+  tiers: RewardTier[];
+  eligibilityRules: EligibilityRule[];
   isActive: boolean;
-  antiBot: AntiBot;
   createdAt: string;
   closedAt: string | null;
   claimedCount: number;
-  remainingAmount: bigint;
 }
 
 export interface ClaimData {
@@ -31,35 +30,50 @@ export interface ClaimData {
   twitterId: string;
   twitterHandle: string;
   walletAddress: string;
-  amount: bigint;
+  usdcAmount: string;
+  slotNumber: number;
   txHash: string | null;
   claimedAt: string;
 }
 
-export interface TwitterUser {
-  id: string;
-  username: string;
-  name: string;
-  profile_image_url: string;
-  created_at: string;
-  public_metrics: {
-    followers_count: number;
-    following_count: number;
-    tweet_count: number;
-  };
-  verified: boolean;
+export interface EligibilityCheck {
+  rule: string;
+  passed: boolean;
+  current: number | string;
+  required: number | string;
 }
 
-export interface EligibilityResult {
+export interface EligibilityResponse {
   eligible: boolean;
+  checks: EligibilityCheck[];
   reason?: string;
-  failedRule?: string;
+  signedAuth?: string;
+  claimAmount?: string;
 }
 
-export interface ClaimAuthorization {
-  campaignId: number;
-  recipient: string;
-  twitterId: string;
-  amount: string;
-  signature: string;
+export interface CampaignStatusResponse {
+  slotsRemaining: number;
+  totalSlots: number;
+  claimedCount: number;
+  nextRewardAmount: string | null;
+  isActive: boolean;
+  recentClaims: {
+    handle: string;
+    slotNumber: number;
+    amount: string;
+    time: string;
+  }[];
 }
+
+export type ClaimPageState =
+  | "LOADING"
+  | "CAMPAIGN_FULL"
+  | "CAMPAIGN_CLOSED"
+  | "NOT_LOGGED_IN"
+  | "LOGGED_IN_NO_WALLET"
+  | "CHECKING_ELIGIBILITY"
+  | "INELIGIBLE"
+  | "ALREADY_CLAIMED"
+  | "ELIGIBLE_READY_TO_CLAIM"
+  | "CLAIMING"
+  | "CLAIMED_SUCCESS";

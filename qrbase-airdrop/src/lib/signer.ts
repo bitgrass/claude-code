@@ -1,7 +1,5 @@
-import { createWalletClient, http, type Hex } from "viem";
+import { type Hex, encodePacked, keccak256 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base, baseSepolia } from "viem/chains";
-import { encodePacked, keccak256 } from "viem";
 
 const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY as Hex;
 

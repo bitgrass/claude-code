@@ -7,24 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum SplitType {
-  EQUAL
-  RANDOM
-}
-
 model Campaign {
-  id             String    @id @default(cuid())
-  onChainId      Int       @unique
-  creatorWallet  String
-  creatorTwitter String?
-  totalAmount    BigInt
-  maxRecipients  Int
-  splitType      SplitType
-  isActive       Boolean   @default(true)
-  antiBot        Json
-  createdAt      DateTime  @default(now())
-  closedAt       DateTime?
-  claims         Claim[]
+  id              String    @id @default(cuid())
+  onChainId       Int       @unique
+  creatorWallet   String
+  name            String
+  tokenSymbol     String    // e.g. "SCAN"
+  tokenAddress    String    // ERC-20 address for balance check
+  totalUsdc       BigInt    // Total USDC deposited (6 decimals)
+  maxRecipients   Int
+  tiers           Json      // [{ position: 1, amount: 500000000 }, ...]
+  eligibilityRules Json     // [{ type: "puzzle_wins", token: "SCAN", min: 20 }, ...]
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+  claims          Claim[]
 
   @@index([isActive])
   @@index([creatorWallet])
@@ -32,12 +29,13 @@ model Campaign {
 
 model Claim {
   id            String   @id @default(cuid())
-  campaign      Campaign @relation(fields: [campaignId], references: [id])
   campaignId    String
+  campaign      Campaign @relation(fields: [campaignId], references: [id])
   twitterId     String
   twitterHandle String
   walletAddress String
-  amount        BigInt
+  usdcAmount    BigInt   // 6 decimals
+  slotNumber    Int      // 1st, 2nd, 3rd claimer
   txHash        String?
   claimedAt     DateTime @default(now())
 

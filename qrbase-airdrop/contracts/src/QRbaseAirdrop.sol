@@ -13,53 +13,51 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    enum SplitType {
-        EQUAL,
-        RANDOM
+    struct RewardTier {
+        uint256 amount; // USDC amount for this position (6 decimals)
     }
 
     struct Campaign {
         address creator;
-        uint256 totalAmount;
+        uint256 totalDeposited;
         uint256 remainingAmount;
         uint256 maxRecipients;
         uint256 claimedCount;
-        SplitType splitType;
-        uint256 equalShare;
         bool isActive;
         uint256 createdAt;
-        uint256 closedAt;
     }
 
     mapping(uint256 => Campaign) public campaigns;
+    mapping(uint256 => RewardTier[]) public campaignTiers;
     mapping(uint256 => mapping(address => bool)) public hasClaimed;
     mapping(uint256 => mapping(string => bool)) public twitterClaimed;
 
     uint256 public campaignCount;
     address public immutable USDC;
     uint256 public constant MAX_RECIPIENTS = 500;
-    uint256 public constant MAX_AMOUNT = 2000 * 1e6;
     address public signer;
 
     event CampaignCreated(
         uint256 indexed campaignId,
         address indexed creator,
         uint256 totalAmount,
-        uint256 maxRecipients,
-        SplitType splitType
+        uint256 maxRecipients
     );
 
     event RewardClaimed(
         uint256 indexed campaignId,
         address indexed recipient,
         string twitterId,
-        uint256 amount
+        uint256 amount,
+        uint256 slotNumber
     );
 
     event CampaignClosed(
         uint256 indexed campaignId,
         uint256 remainingAmount
     );
+
+    event SignerUpdated(address oldSigner, address newSigner);
 
     constructor(address _usdc, address _signer) Ownable(msg.sender) {
         require(_usdc != address(0), "Invalid USDC address");
@@ -69,83 +67,92 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
     }
 
     function createCampaign(
-        uint256 amount,
+        uint256 totalAmount,
         uint256 maxRecipients,
-        SplitType splitType
+        uint256[] calldata tierAmounts
     ) external returns (uint256) {
-        require(amount > 0, "Amount must be greater than 0");
-        require(amount <= MAX_AMOUNT, "Amount exceeds maximum");
+        require(totalAmount > 0, "Amount must be greater than 0");
         require(maxRecipients > 0, "Must have at least 1 recipient");
         require(maxRecipients <= MAX_RECIPIENTS, "Exceeds max recipients");
 
-        uint256 equalShare = 0;
-        if (splitType == SplitType.EQUAL) {
-            equalShare = amount / maxRecipients;
-            require(equalShare > 0, "Share too small");
+        // Validate tiers
+        if (tierAmounts.length == 1) {
+            // Equal split: single tier amount applied to all slots
+            require(tierAmounts[0] * maxRecipients <= totalAmount, "Tier amounts exceed total");
+        } else {
+            require(tierAmounts.length == maxRecipients, "Tier count must match recipients");
+            uint256 tierSum = 0;
+            for (uint256 i = 0; i < tierAmounts.length; i++) {
+                require(tierAmounts[i] > 0, "Tier amount must be > 0");
+                tierSum += tierAmounts[i];
+            }
+            require(tierSum <= totalAmount, "Tier amounts exceed total");
         }
 
-        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), totalAmount);
 
         uint256 campaignId = campaignCount;
         campaignCount++;
 
         campaigns[campaignId] = Campaign({
             creator: msg.sender,
-            totalAmount: amount,
-            remainingAmount: amount,
+            totalDeposited: totalAmount,
+            remainingAmount: totalAmount,
             maxRecipients: maxRecipients,
             claimedCount: 0,
-            splitType: splitType,
-            equalShare: equalShare,
             isActive: true,
-            createdAt: block.timestamp,
-            closedAt: 0
+            createdAt: block.timestamp
         });
 
-        emit CampaignCreated(campaignId, msg.sender, amount, maxRecipients, splitType);
+        // Store tiers
+        for (uint256 i = 0; i < tierAmounts.length; i++) {
+            campaignTiers[campaignId].push(RewardTier({amount: tierAmounts[i]}));
+        }
+
+        emit CampaignCreated(campaignId, msg.sender, totalAmount, maxRecipients);
 
         return campaignId;
     }
 
     function claimReward(
         uint256 campaignId,
-        address recipient,
         string calldata twitterId,
-        uint256 amount,
         bytes calldata signature
     ) external nonReentrant {
         Campaign storage campaign = campaigns[campaignId];
 
         require(campaign.isActive, "Campaign is not active");
-        require(!hasClaimed[campaignId][recipient], "Already claimed");
-        require(!twitterClaimed[campaignId][twitterId], "Twitter already claimed");
+        require(!hasClaimed[campaignId][msg.sender], "Already claimed (wallet)");
+        require(!twitterClaimed[campaignId][twitterId], "Already claimed (twitter)");
         require(campaign.claimedCount < campaign.maxRecipients, "All rewards claimed");
 
+        // Determine reward amount based on current slot
+        uint256 slotNumber = campaign.claimedCount; // 0-indexed
+        uint256 claimAmount = getRewardForSlot(campaignId, slotNumber);
+
+        // Verify backend signature: (campaignId, recipient, twitterId, amount)
         bytes32 messageHash = keccak256(
-            abi.encodePacked(campaignId, recipient, twitterId, amount)
+            abi.encodePacked(campaignId, msg.sender, twitterId, claimAmount)
         );
         bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
         address recoveredSigner = ethSignedHash.recover(signature);
         require(recoveredSigner == signer, "Invalid signature");
 
-        uint256 claimAmount;
-        if (campaign.splitType == SplitType.EQUAL) {
-            claimAmount = amount == 0 ? campaign.equalShare : amount;
-        } else {
-            claimAmount = amount;
-        }
+        require(claimAmount <= campaign.remainingAmount, "Insufficient remaining");
 
-        require(claimAmount > 0, "Claim amount must be greater than 0");
-        require(claimAmount <= campaign.remainingAmount, "Insufficient remaining amount");
-
-        hasClaimed[campaignId][recipient] = true;
+        hasClaimed[campaignId][msg.sender] = true;
         twitterClaimed[campaignId][twitterId] = true;
         campaign.claimedCount++;
         campaign.remainingAmount -= claimAmount;
 
-        IERC20(USDC).safeTransfer(recipient, claimAmount);
+        IERC20(USDC).safeTransfer(msg.sender, claimAmount);
 
-        emit RewardClaimed(campaignId, recipient, twitterId, claimAmount);
+        emit RewardClaimed(campaignId, msg.sender, twitterId, claimAmount, slotNumber + 1);
+
+        // Auto-close when all slots filled
+        if (campaign.claimedCount == campaign.maxRecipients) {
+            campaign.isActive = false;
+        }
     }
 
     function closeCampaign(uint256 campaignId) external nonReentrant {
@@ -155,7 +162,6 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
         require(campaign.isActive, "Campaign already closed");
 
         campaign.isActive = false;
-        campaign.closedAt = block.timestamp;
 
         uint256 remaining = campaign.remainingAmount;
         campaign.remainingAmount = 0;
@@ -167,8 +173,35 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
         emit CampaignClosed(campaignId, remaining);
     }
 
+    function getRewardForSlot(uint256 campaignId, uint256 slotIndex) public view returns (uint256) {
+        RewardTier[] storage tiers = campaignTiers[campaignId];
+        if (tiers.length == 1) {
+            // Equal split
+            return tiers[0].amount;
+        }
+        require(slotIndex < tiers.length, "Invalid slot index");
+        return tiers[slotIndex].amount;
+    }
+
+    function getCampaignStatus(uint256 campaignId) external view returns (
+        uint256 slotsRemaining,
+        uint256 nextRewardAmount,
+        bool isActive
+    ) {
+        Campaign storage campaign = campaigns[campaignId];
+        slotsRemaining = campaign.maxRecipients - campaign.claimedCount;
+        isActive = campaign.isActive;
+        if (isActive && slotsRemaining > 0) {
+            nextRewardAmount = getRewardForSlot(campaignId, campaign.claimedCount);
+        }
+    }
+
     function getCampaign(uint256 campaignId) external view returns (Campaign memory) {
         return campaigns[campaignId];
+    }
+
+    function getTierCount(uint256 campaignId) external view returns (uint256) {
+        return campaignTiers[campaignId].length;
     }
 
     function getClaimStatus(uint256 campaignId, address wallet) external view returns (bool) {
@@ -177,6 +210,7 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
 
     function setSigner(address _signer) external onlyOwner {
         require(_signer != address(0), "Invalid signer address");
+        emit SignerUpdated(signer, _signer);
         signer = _signer;
     }
 }

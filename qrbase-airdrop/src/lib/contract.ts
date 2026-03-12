@@ -8,12 +8,17 @@ export const publicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL),
 });
 
-export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as Address;
+export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "") as Address;
 export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") as Address;
+export const SCAN_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "") as Address;
 
 export const QRBASE_AIRDROP_ABI = [
   {
-    inputs: [{ name: "amount", type: "uint256" }, { name: "maxRecipients", type: "uint256" }, { name: "splitType", type: "uint8" }],
+    inputs: [
+      { name: "totalAmount", type: "uint256" },
+      { name: "maxRecipients", type: "uint256" },
+      { name: "tierAmounts", type: "uint256[]" },
+    ],
     name: "createCampaign",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "nonpayable",
@@ -22,9 +27,7 @@ export const QRBASE_AIRDROP_ABI = [
   {
     inputs: [
       { name: "campaignId", type: "uint256" },
-      { name: "recipient", type: "address" },
       { name: "twitterId", type: "string" },
-      { name: "amount", type: "uint256" },
       { name: "signature", type: "bytes" },
     ],
     name: "claimReward",
@@ -46,15 +49,12 @@ export const QRBASE_AIRDROP_ABI = [
       {
         components: [
           { name: "creator", type: "address" },
-          { name: "totalAmount", type: "uint256" },
+          { name: "totalDeposited", type: "uint256" },
           { name: "remainingAmount", type: "uint256" },
           { name: "maxRecipients", type: "uint256" },
           { name: "claimedCount", type: "uint256" },
-          { name: "splitType", type: "uint8" },
-          { name: "equalShare", type: "uint256" },
           { name: "isActive", type: "bool" },
           { name: "createdAt", type: "uint256" },
-          { name: "closedAt", type: "uint256" },
         ],
         name: "",
         type: "tuple",
@@ -64,27 +64,40 @@ export const QRBASE_AIRDROP_ABI = [
     type: "function",
   },
   {
-    inputs: [{ name: "campaignId", type: "uint256" }, { name: "wallet", type: "address" }],
-    name: "getClaimStatus",
-    outputs: [{ name: "", type: "bool" }],
+    inputs: [{ name: "campaignId", type: "uint256" }],
+    name: "getCampaignStatus",
+    outputs: [
+      { name: "slotsRemaining", type: "uint256" },
+      { name: "nextRewardAmount", type: "uint256" },
+      { name: "isActive", type: "bool" },
+    ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ name: "", type: "uint256" }],
-    name: "campaigns",
-    outputs: [
-      { name: "creator", type: "address" },
-      { name: "totalAmount", type: "uint256" },
-      { name: "remainingAmount", type: "uint256" },
-      { name: "maxRecipients", type: "uint256" },
-      { name: "claimedCount", type: "uint256" },
-      { name: "splitType", type: "uint8" },
-      { name: "equalShare", type: "uint256" },
-      { name: "isActive", type: "bool" },
-      { name: "createdAt", type: "uint256" },
-      { name: "closedAt", type: "uint256" },
+    inputs: [
+      { name: "campaignId", type: "uint256" },
+      { name: "slotIndex", type: "uint256" },
     ],
+    name: "getRewardForSlot",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "campaignId", type: "uint256" }],
+    name: "getTierCount",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "campaignId", type: "uint256" },
+      { name: "wallet", type: "address" },
+    ],
+    name: "getClaimStatus",
+    outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
@@ -102,7 +115,6 @@ export const QRBASE_AIRDROP_ABI = [
       { indexed: true, name: "creator", type: "address" },
       { indexed: false, name: "totalAmount", type: "uint256" },
       { indexed: false, name: "maxRecipients", type: "uint256" },
-      { indexed: false, name: "splitType", type: "uint8" },
     ],
     name: "CampaignCreated",
     type: "event",
@@ -114,6 +126,7 @@ export const QRBASE_AIRDROP_ABI = [
       { indexed: true, name: "recipient", type: "address" },
       { indexed: false, name: "twitterId", type: "string" },
       { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "slotNumber", type: "uint256" },
     ],
     name: "RewardClaimed",
     type: "event",
@@ -131,7 +144,10 @@ export const QRBASE_AIRDROP_ABI = [
 
 export const ERC20_ABI = [
   {
-    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
     name: "approve",
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "nonpayable",
@@ -145,7 +161,10 @@ export const ERC20_ABI = [
     type: "function",
   },
   {
-    inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }],
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
     name: "allowance",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",

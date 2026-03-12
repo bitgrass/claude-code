@@ -1,172 +1,189 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract } from "wagmi";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { CONTRACT_ADDRESS, QRBASE_AIRDROP_ABI } from "@/lib/contract";
+import { Badge } from "@/components/ui/Badge";
 import type { CampaignData, ClaimData } from "@/types";
 
-function formatUSDC(amount: bigint | string): string {
-  const num = Number(amount) / 1e6;
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function truncateAddress(addr: string): string {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+function formatUsdc(amount: string): string {
+  return `$${(Number(amount) / 1e6).toLocaleString()}`;
 }
 
 export function CampaignDashboard() {
-  const { address } = useAccount();
-  const { writeContract, isPending } = useWriteContract();
-  const [campaigns, setCampaigns] = useState<(CampaignData & { claims: ClaimData[] })[]>([]);
+  const { getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const wallet = wallets[0];
+
+  const [campaigns, setCampaigns] = useState<
+    (CampaignData & { claims: ClaimData[] })[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!address) return;
-    fetchCampaigns();
-  }, [address]);
-
   const fetchCampaigns = async () => {
+    if (!wallet) return;
     try {
-      const res = await fetch(`/api/campaigns?creator=${address}`);
+      const res = await fetch(
+        `/api/campaigns?creator=${wallet.address}&active=false`
+      );
       const data = await res.json();
       setCampaigns(data.campaigns || []);
-    } catch {
-      console.error("Failed to fetch campaigns");
+    } catch (err) {
+      console.error("Failed to fetch campaigns:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClose = (campaign: CampaignData) => {
-    writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: QRBASE_AIRDROP_ABI,
-      functionName: "closeCampaign",
-      args: [BigInt(campaign.onChainId)],
-    });
+  useEffect(() => {
+    fetchCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet?.address]);
 
-    // Also update DB
-    fetch(`/api/campaigns/${campaign.id}/close`, { method: "POST" }).then(() =>
-      fetchCampaigns()
-    );
+  const handleClose = async (campaignId: string) => {
+    if (!confirm("Close this campaign and withdraw remaining USDC?")) return;
+    try {
+      const token = await getAccessToken();
+      await fetch(`/api/campaigns/${campaignId}/close`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchCampaigns();
+    } catch (err) {
+      console.error("Failed to close:", err);
+    }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+      <div className="space-y-4 animate-pulse">
+        {[1, 2].map((i) => (
+          <div key={i} className="h-32 bg-gray-100 rounded-2xl" />
+        ))}
       </div>
     );
   }
 
   if (campaigns.length === 0) {
     return (
-      <Card className="text-center py-8">
-        <p className="text-muted">No campaigns yet. Create your first one above!</p>
+      <Card className="p-8 text-center">
+        <p className="text-muted">No campaigns yet. Create your first one above.</p>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-gray-900">Your Campaigns</h2>
       {campaigns.map((campaign) => {
-        const progressPercent =
-          campaign.maxRecipients > 0
-            ? (campaign.claimedCount / campaign.maxRecipients) * 100
-            : 0;
+        const claimedCount = campaign.claimedCount || 0;
+        const filledBlocks = Math.round(
+          (claimedCount / campaign.maxRecipients) * 10
+        );
+        const claimUrl = `https://airdrop.qrbase.xyz/claim/${campaign.id}`;
 
         return (
-          <Card key={campaign.id}>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-semibold text-white">
-                    Campaign #{campaign.onChainId}
-                  </h4>
-                  <Badge variant={campaign.isActive ? "success" : "error"}>
-                    {campaign.isActive ? "Active" : "Closed"}
-                  </Badge>
-                  <Badge variant="warning">{campaign.splitType}</Badge>
-                </div>
-                <p className="text-xs text-muted">
-                  Created {new Date(campaign.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              {campaign.isActive && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  loading={isPending}
-                  onClick={() => handleClose(campaign)}
-                >
-                  Close & Withdraw
-                </Button>
-              )}
+          <Card key={campaign.id} className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">{campaign.name}</h3>
+              <Badge variant={campaign.isActive ? "success" : "default"}>
+                {campaign.isActive ? "Active" : "Closed"}
+              </Badge>
             </div>
 
-            {/* Progress */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-muted">
-                  ${formatUSDC(campaign.totalAmount)} pool
-                </span>
-                <span className="text-white">
-                  {campaign.claimedCount}/{campaign.maxRecipients} claimed
-                </span>
+            {/* Progress bar */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 flex gap-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-2.5 flex-1 rounded-sm ${
+                      i < filledBlocks ? "bg-primary" : "bg-gray-200"
+                    }`}
+                  />
+                ))}
               </div>
-              <div className="h-2 bg-surface-light rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-accent to-accent-orange rounded-full transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              <span className="text-sm text-muted whitespace-nowrap">
+                {claimedCount}/{campaign.maxRecipients}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted">Prize Pool</span>
+                <p className="font-medium">
+                  {formatUsdc(campaign.totalUsdc)}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted">Token</span>
+                <p className="font-medium">${campaign.tokenSymbol}</p>
               </div>
             </div>
+
+            {/* Claim URL */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={claimUrl}
+                className="flex-1 px-3 py-1.5 bg-surface-muted border border-border rounded-lg text-xs font-mono"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => navigator.clipboard.writeText(claimUrl)}
+              >
+                Copy
+              </Button>
+            </div>
+            <p className="text-xs text-muted">
+              Add this URL to qrfy.com to generate your QR code
+            </p>
 
             {/* Recent claims */}
             {campaign.claims && campaign.claims.length > 0 && (
-              <div>
-                <h5 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-gray-500">
                   Recent Claims
-                </h5>
-                <div className="space-y-2">
-                  {campaign.claims.slice(0, 5).map((claim) => (
-                    <div
-                      key={claim.id}
-                      className="flex items-center justify-between bg-surface-light rounded-lg px-3 py-2 text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-accent">@{claim.twitterHandle}</span>
-                        <span className="text-muted">
-                          {truncateAddress(claim.walletAddress)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-success font-medium">
-                          +${formatUSDC(claim.amount.toString())}
-                        </span>
-                        <span className="text-muted text-xs">
-                          {timeAgo(claim.claimedAt)}
-                        </span>
-                      </div>
+                </p>
+                {campaign.claims.slice(0, 5).map((claim: ClaimData) => (
+                  <div
+                    key={claim.id}
+                    className="flex items-center justify-between text-xs bg-surface-muted p-2 rounded-lg"
+                  >
+                    <span className="text-gray-600">
+                      @{claim.twitterHandle}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {formatUsdc(claim.usdcAmount)}
+                      </span>
+                      {claim.txHash && (
+                        <a
+                          href={`https://basescan.org/tx/${claim.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          tx
+                        </a>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            )}
+
+            {campaign.isActive && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => handleClose(campaign.id)}
+              >
+                Close Campaign &amp; Withdraw
+              </Button>
             )}
           </Card>
         );

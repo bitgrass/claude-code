@@ -1,31 +1,42 @@
 "use client";
 
+import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
-import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import { SessionProvider } from "next-auth/react";
-import "@rainbow-me/rainbowkit/styles.css";
-import { config } from "@/lib/wagmi";
+import { WagmiProvider, createConfig, http } from "wagmi";
+import { base, baseSepolia } from "wagmi/chains";
+import { useState } from "react";
 
-const queryClient = new QueryClient();
+const wagmiConfig = createConfig({
+  chains: [base, baseSepolia],
+  transports: {
+    [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"),
+    [baseSepolia.id]: http("https://sepolia.base.org"),
+  },
+});
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
-    <SessionProvider>
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider
-            theme={darkTheme({
-              accentColor: "#f59e0b",
-              accentColorForeground: "#0a0a0a",
-              borderRadius: "medium",
-              overlayBlur: "small",
-            })}
-          >
-            {children}
-          </RainbowKitProvider>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </SessionProvider>
+    <PrivyProvider
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+      config={{
+        loginMethods: ["twitter"],
+        appearance: {
+          theme: "light",
+          accentColor: "#3B82F6",
+          logo: "https://airdrop.qrbase.xyz/logo.png",
+        },
+        embeddedWallets: {
+          createOnLogin: "users-without-wallets",
+        },
+        defaultChain: base,
+        supportedChains: [base, baseSepolia],
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>
+      </QueryClientProvider>
+    </PrivyProvider>
   );
 }

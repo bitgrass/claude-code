@@ -6,18 +6,7 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-
-interface CampaignListItem {
-  id: string;
-  onChainId: number;
-  totalAmount: string;
-  maxRecipients: number;
-  splitType: string;
-  isActive: boolean;
-  claimedCount: number;
-  remainingAmount: string;
-  createdAt: string;
-}
+import type { CampaignData } from "@/types";
 
 const steps = [
   {
@@ -27,30 +16,53 @@ const steps = [
       </svg>
     ),
     title: "Sign in with X",
-    description: "Verify your Twitter/X identity to prove you solved the QR challenge",
+    description:
+      "Your QRbase session carries over — zero extra login friction",
   },
   {
     icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+      <svg
+        className="w-8 h-8"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+        />
       </svg>
     ),
-    title: "Connect Wallet",
-    description: "Connect your Base wallet (Coinbase Wallet, MetaMask, or WalletConnect)",
+    title: "Check Eligibility",
+    description:
+      "We verify your puzzle wins and $SCAN balance automatically",
   },
   {
     icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <svg
+        className="w-8 h-8"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
       </svg>
     ),
     title: "Claim USDC",
-    description: "Receive your USDC reward directly on the Base blockchain",
+    description:
+      "Receive your USDC reward directly on the Base blockchain",
   },
 ];
 
 export default function HomePage() {
-  const [campaigns, setCampaigns] = useState<CampaignListItem[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,22 +74,22 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen qr-pattern">
       {/* Header */}
-      <header className="border-b border-white/5">
+      <header className="border-b border-border bg-white">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-              <span className="text-background font-bold text-sm">QR</span>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">QR</span>
             </div>
-            <span className="font-bold text-lg text-white">
-              QRbase <span className="text-accent">Airdrop</span>
+            <span className="font-bold text-lg text-gray-900">
+              QRbase <span className="text-primary">Airdrop</span>
             </span>
           </div>
           <nav className="flex items-center gap-4">
             <Link
               href="/admin"
-              className="text-muted hover:text-white text-sm transition-colors"
+              className="text-muted hover:text-gray-900 text-sm transition-colors"
             >
               Admin
             </Link>
@@ -85,13 +97,20 @@ export default function HomePage() {
               href="https://twitter.com/QRbase_Bot"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted hover:text-white text-sm transition-colors"
+              className="text-muted hover:text-gray-900 text-sm transition-colors"
             >
               @QRbase_Bot
             </a>
           </nav>
         </div>
       </header>
+
+      {/* Gradient banner */}
+      <div className="gradient-banner py-2 text-center">
+        <p className="text-white text-xs font-medium">
+          Reward distribution layer for SCAN MODE campaigns on Base
+        </p>
+      </div>
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 pt-20 pb-16 text-center">
@@ -100,20 +119,20 @@ export default function HomePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="inline-flex items-center gap-2 bg-accent/10 text-accent px-4 py-1.5 rounded-full text-sm font-medium mb-6">
-            <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+          <div className="inline-flex items-center gap-2 bg-blue-50 text-primary px-4 py-1.5 rounded-full text-sm font-medium mb-6">
+            <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
             Powered by Base
           </div>
-          <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-4 tracking-tight">
+          <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-4 tracking-tight">
             Claim your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-accent-orange">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-purple">
               QRbase
             </span>{" "}
             reward
           </h1>
           <p className="text-muted text-lg max-w-xl mx-auto mb-8">
-            Solved a QR challenge? Connect your X account and Base wallet to
-            claim your USDC airdrop reward.
+            Solved the SCAN MODE puzzle? Scan the QR code and claim your
+            USDC airdrop reward on Base.
           </p>
         </motion.div>
       </section>
@@ -131,14 +150,16 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * i, duration: 0.5 }}
             >
-              <Card className="text-center h-full">
-                <div className="w-14 h-14 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-accent">
+              <Card className="text-center h-full p-6">
+                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary">
                   {step.icon}
                 </div>
-                <div className="text-xs text-accent font-semibold mb-2">
+                <div className="text-xs text-primary font-semibold mb-2">
                   Step {i + 1}
                 </div>
-                <h3 className="text-white font-semibold mb-2">{step.title}</h3>
+                <h3 className="text-gray-900 font-semibold mb-2">
+                  {step.title}
+                </h3>
                 <p className="text-muted text-sm">{step.description}</p>
               </Card>
             </motion.div>
@@ -154,10 +175,10 @@ export default function HomePage() {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+            <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
           </div>
         ) : campaigns.length === 0 ? (
-          <Card className="text-center py-8">
+          <Card className="text-center py-8 px-6">
             <p className="text-muted">No active campaigns right now.</p>
             <p className="text-muted text-sm mt-1">
               Follow{" "}
@@ -165,7 +186,7 @@ export default function HomePage() {
                 href="https://twitter.com/QRbase_Bot"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline"
+                className="text-primary hover:underline"
               >
                 @QRbase_Bot
               </a>{" "}
@@ -175,10 +196,12 @@ export default function HomePage() {
         ) : (
           <div className="grid gap-4">
             {campaigns.map((campaign) => {
-              const pool = Number(campaign.totalAmount) / 1e6;
-              const slotsLeft = campaign.maxRecipients - campaign.claimedCount;
+              const pool = Number(campaign.totalUsdc) / 1e6;
+              const slotsLeft =
+                campaign.maxRecipients - (campaign.claimedCount || 0);
               const progress =
-                (campaign.claimedCount / campaign.maxRecipients) * 100;
+                ((campaign.claimedCount || 0) / campaign.maxRecipients) *
+                100;
 
               return (
                 <motion.div
@@ -186,33 +209,33 @@ export default function HomePage() {
                   whileHover={{ scale: 1.01 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Link href={`/campaigns/${campaign.id}`}>
-                    <Card className="hover:border-accent/20 transition-colors cursor-pointer">
+                  <Link href={`/claim/${campaign.id}`}>
+                    <Card className="p-5 hover:border-primary/30 transition-colors cursor-pointer">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">
+                            {campaign.name}
+                          </h3>
                           <Badge variant="success">Active</Badge>
-                          <Badge variant="warning">{campaign.splitType}</Badge>
                         </div>
-                        <span className="text-xs text-muted">
-                          #{campaign.onChainId}
+                        <span className="text-xs font-medium text-primary">
+                          ${campaign.tokenSymbol}
                         </span>
                       </div>
                       <div className="flex items-end justify-between mb-3">
-                        <div>
-                          <p className="text-2xl font-bold text-white">
-                            ${pool.toFixed(2)}{" "}
-                            <span className="text-muted text-sm font-normal">
-                              USDC
-                            </span>
-                          </p>
-                        </div>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ${pool.toLocaleString()}{" "}
+                          <span className="text-muted text-sm font-normal">
+                            USDC
+                          </span>
+                        </p>
                         <p className="text-sm text-muted">
                           {slotsLeft} slots remaining
                         </p>
                       </div>
-                      <div className="h-1.5 bg-surface-light rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-accent to-accent-orange rounded-full"
+                          className="h-full bg-gradient-to-r from-primary to-accent-purple rounded-full transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -227,13 +250,13 @@ export default function HomePage() {
 
       {/* How to win */}
       <section className="max-w-4xl mx-auto px-4 pb-20">
-        <Card className="text-center">
-          <h3 className="text-lg font-bold text-white mb-2">
+        <Card className="text-center p-8">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
             How to Win Future Campaigns
           </h3>
           <p className="text-muted text-sm mb-4">
-            Follow @QRbase_Bot on X and solve QR challenges to earn USDC
-            rewards. New puzzles are posted regularly!
+            Follow @QRbase_Bot on X, solve QR puzzles in SCAN MODE, and
+            hold $SCAN tokens to be eligible for USDC rewards.
           </p>
           <a
             href="https://twitter.com/QRbase_Bot"
@@ -248,11 +271,11 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-8">
+      <footer className="border-t border-border py-8">
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-accent rounded flex items-center justify-center">
-              <span className="text-background font-bold text-xs">QR</span>
+            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
+              <span className="text-white font-bold text-xs">QR</span>
             </div>
             <span>QRbase Airdrop</span>
           </div>
@@ -262,7 +285,7 @@ export default function HomePage() {
               href="https://twitter.com/QRbase_Bot"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-white transition-colors"
+              className="hover:text-gray-900 transition-colors"
             >
               Twitter/X
             </a>
