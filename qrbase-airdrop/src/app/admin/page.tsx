@@ -1,50 +1,59 @@
 "use client";
 
-import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useState } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
 import { CreateCampaignForm } from "@/components/admin/CreateCampaignForm";
 import { CampaignDashboard } from "@/components/admin/CampaignDashboard";
 
 export default function AdminPage() {
-  const { isConnected } = useAccount();
+  const { authenticated, login } = usePrivy();
+  const { wallets } = useWallets();
+  const hasWallet = wallets.length > 0;
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen qr-pattern">
       {/* Header */}
-      <header className="border-b border-white/5">
+      <header className="border-b border-border bg-white">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-              <span className="text-background font-bold text-sm">QR</span>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">QR</span>
             </div>
-            <span className="font-bold text-lg text-white">
-              QRbase <span className="text-accent">Airdrop</span>
+            <span className="font-bold text-lg text-gray-900">
+              QRbase <span className="text-primary">Airdrop</span>
             </span>
           </Link>
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="text-muted hover:text-white text-sm transition-colors"
+              className="text-muted hover:text-gray-900 text-sm transition-colors"
             >
               Home
             </Link>
-            <ConnectButton />
+            {authenticated && hasWallet && (
+              <span className="text-xs font-mono text-muted bg-surface-muted px-2 py-1 rounded-lg">
+                {wallets[0].address.slice(0, 6)}...
+                {wallets[0].address.slice(-4)}
+              </span>
+            )}
           </div>
         </div>
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold text-white mb-2">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Campaign Admin
         </h1>
         <p className="text-muted mb-8">
           Create and manage your QRbase airdrop campaigns.
         </p>
 
-        {!isConnected ? (
+        {!authenticated || !hasWallet ? (
           <div className="text-center py-16">
-            <div className="w-20 h-20 bg-surface-light rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-20 h-20 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-6">
               <svg
                 className="w-10 h-10 text-muted"
                 fill="none"
@@ -59,26 +68,22 @@ export default function AdminPage() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">
-              Connect Your Wallet
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Connect to Continue
             </h2>
             <p className="text-muted text-sm mb-6">
-              Connect your wallet to create and manage campaigns.
+              Sign in and connect your wallet to create and manage campaigns.
             </p>
-            <div className="flex justify-center">
-              <ConnectButton />
-            </div>
+            <Button size="lg" onClick={login}>
+              Sign In
+            </Button>
           </div>
         ) : (
           <div className="space-y-8">
-            <CreateCampaignForm />
-
-            <div>
-              <h2 className="text-xl font-bold text-white mb-4">
-                Your Campaigns
-              </h2>
-              <CampaignDashboard />
-            </div>
+            <CreateCampaignForm
+              onCreated={() => setRefreshKey((k) => k + 1)}
+            />
+            <CampaignDashboard key={refreshKey} />
           </div>
         )}
       </div>
