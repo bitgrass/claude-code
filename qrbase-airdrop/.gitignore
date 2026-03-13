@@ -9,6 +9,7 @@
 
 # next.js
 /.next/
+/.open-next/
 /out/
 
 # production
@@ -25,14 +26,19 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.dev.vars
 .env
 
 # vercel
 .vercel
 
+# cloudflare / wrangler
+.wrangler/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+cloudflare-env.d.ts
 
 # prisma
 prisma/migrations/

@@ -11,3 +11,10 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+try {
+  const { initOpenNextCloudflareForDev } = require("@opennextjs/cloudflare");
+  initOpenNextCloudflareForDev();
+} catch {
+  // The adapter is only needed for Cloudflare preview/deploy workflows.
+}
