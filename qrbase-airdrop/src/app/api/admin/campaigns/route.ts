@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { verifyPrivyToken } from "@/lib/privy";
 import type { EligibilityRule, RewardTier } from "@/types";
@@ -60,8 +61,8 @@ export async function POST(req: NextRequest) {
         tokenAddress,
         totalUsdc: BigInt(totalUsdc),
         maxRecipients,
-        tiers: tiers as unknown as Record<string, unknown>[],
-        eligibilityRules: eligibilityRules as unknown as Record<string, unknown>[],
+        tiers: tiers as unknown as Prisma.InputJsonValue,
+        eligibilityRules: eligibilityRules as unknown as Prisma.InputJsonValue,
       },
     });
 

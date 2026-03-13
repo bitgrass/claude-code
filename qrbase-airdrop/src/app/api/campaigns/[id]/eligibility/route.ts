@@ -103,7 +103,7 @@ export async function POST(
       eligibilityResult = cached;
     } else {
       // Evaluate rules
-      const rules = campaign.eligibilityRules as EligibilityRule[];
+      const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
       eligibilityResult = await evaluateEligibility(
         rules,
         user.twitterId,
@@ -120,7 +120,7 @@ export async function POST(
     }
 
     // Determine reward amount for current slot
-    const tiers = campaign.tiers as RewardTier[];
+    const tiers = campaign.tiers as unknown as RewardTier[];
     const slotIndex = campaign.claims.length;
     let claimAmount: bigint;
 

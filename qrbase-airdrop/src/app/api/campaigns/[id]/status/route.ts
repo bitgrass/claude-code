@@ -26,7 +26,7 @@ export async function GET(
 
   const claimedCount = campaign.claims.length;
   const slotsRemaining = campaign.maxRecipients - claimedCount;
-  const tiers = campaign.tiers as RewardTier[];
+  const tiers = campaign.tiers as unknown as RewardTier[];
 
   let nextRewardAmount: string | null = null;
   if (campaign.isActive && slotsRemaining > 0) {

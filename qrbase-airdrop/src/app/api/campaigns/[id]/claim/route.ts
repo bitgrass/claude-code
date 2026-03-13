@@ -39,7 +39,7 @@ export async function POST(
     }
 
     const slotNumber = campaign.claims.length + 1;
-    const tiers = campaign.tiers as RewardTier[];
+    const tiers = campaign.tiers as unknown as RewardTier[];
     let usdcAmount: bigint;
 
     if (tiers.length === 1) {
