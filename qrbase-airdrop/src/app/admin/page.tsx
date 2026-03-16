@@ -8,7 +8,7 @@ import { CreateCampaignForm } from "@/components/admin/CreateCampaignForm";
 import { CampaignDashboard } from "@/components/admin/CampaignDashboard";
 
 export default function AdminPage() {
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login, connectWallet, logout } = usePrivy();
   const { wallets } = useWallets();
   const hasWallet = wallets.length > 0;
   const [refreshKey, setRefreshKey] = useState(0);
@@ -39,6 +39,14 @@ export default function AdminPage() {
                 {wallets[0].address.slice(-4)}
               </span>
             )}
+            {authenticated && (
+              <button
+                onClick={logout}
+                className="text-xs text-error hover:underline"
+              >
+                Log out
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -51,7 +59,7 @@ export default function AdminPage() {
           Create and manage your QRbase airdrop campaigns.
         </p>
 
-        {!authenticated || !hasWallet ? (
+        {!authenticated ? (
           <div className="text-center py-16">
             <div className="w-20 h-20 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-6">
               <svg
@@ -76,6 +84,18 @@ export default function AdminPage() {
             </p>
             <Button size="lg" onClick={login}>
               Sign In
+            </Button>
+          </div>
+        ) : !hasWallet ? (
+          <div className="text-center py-16">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Connect a Wallet
+            </h2>
+            <p className="text-muted text-sm mb-6">
+              Connect MetaMask or another wallet to create campaigns.
+            </p>
+            <Button size="lg" onClick={connectWallet}>
+              Connect Wallet
             </Button>
           </div>
         ) : (

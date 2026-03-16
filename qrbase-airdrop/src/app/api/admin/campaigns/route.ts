@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { verifyPrivyToken } from "@/lib/privy";
+import { getDb } from "@/lib/db";
 import type { EligibilityRule, RewardTier } from "@/types";
 
 // POST /api/admin/campaigns — Create campaign on-chain + in DB
 export async function POST(req: NextRequest) {
+  const prisma = getDb();
   try {
-    const user = await verifyPrivyToken(req.headers.get("authorization"));
-    if (!user || !user.walletAddress) {
-      return NextResponse.json(
-        { error: "Not authenticated or no wallet" },
-        { status: 401 }
-      );
-    }
-
     const body = await req.json();
     const {
       name,
@@ -25,6 +17,7 @@ export async function POST(req: NextRequest) {
       tiers,
       eligibilityRules,
       onChainId,
+      creatorWallet,
     } = body as {
       name: string;
       tokenSymbol: string;
@@ -34,7 +27,16 @@ export async function POST(req: NextRequest) {
       tiers: RewardTier[];
       eligibilityRules: EligibilityRule[];
       onChainId: number;
+      creatorWallet: string;
     };
+
+    const walletAddress = creatorWallet;
+    if (!walletAddress) {
+      return NextResponse.json(
+        { error: "No wallet connected" },
+        { status: 400 }
+      );
+    }
 
     if (
       !name ||
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     const campaign = await prisma.campaign.create({
       data: {
         onChainId,
-        creatorWallet: user.walletAddress.toLowerCase(),
+        creatorWallet: walletAddress.toLowerCase(),
         name,
         tokenSymbol,
         tokenAddress,

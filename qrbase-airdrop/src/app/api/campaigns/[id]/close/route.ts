@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { verifyPrivyToken } from "@/lib/privy";
+import { getDb } from "@/lib/db";
 
 // POST /api/campaigns/[id]/close — Admin closes campaign in DB
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getDb();
   try {
-    const user = await verifyPrivyToken(req.headers.get("authorization"));
-    if (!user) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
     });
@@ -24,16 +16,6 @@ export async function POST(
       return NextResponse.json(
         { error: "Campaign not found" },
         { status: 404 }
-      );
-    }
-
-    if (
-      campaign.creatorWallet.toLowerCase() !==
-      user.walletAddress?.toLowerCase()
-    ) {
-      return NextResponse.json(
-        { error: "Only the creator can close this campaign" },
-        { status: 403 }
       );
     }
 

@@ -8,6 +8,9 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    serverComponentsExternalPackages: ["@prisma/client", ".prisma/client"],
+  },
 };
 
 module.exports = nextConfig;

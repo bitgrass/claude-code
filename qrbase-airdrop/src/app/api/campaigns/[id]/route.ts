@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import type { Campaign, Claim } from "@prisma/client";
+import { getDb } from "@/lib/db";
 
 // GET /api/campaigns/[id] — Public campaign info
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getDb();
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
@@ -13,7 +15,7 @@ export async function GET(
         orderBy: { claimedAt: "desc" },
       },
     },
-  });
+  }) as (Campaign & { claims: Claim[] }) | null;
 
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

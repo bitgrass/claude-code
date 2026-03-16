@@ -9,7 +9,7 @@ import type {
 } from "@/types";
 
 export function useClaimFlow(campaign: CampaignData | null) {
-  const { authenticated, user, login, getAccessToken } = usePrivy();
+  const { authenticated, user, login } = usePrivy();
   const { wallets } = useWallets();
 
   const [state, setState] = useState<ClaimPageState>("LOADING");
@@ -40,14 +40,12 @@ export function useClaimFlow(campaign: CampaignData | null) {
     setState("CHECKING_ELIGIBILITY");
 
     try {
-      const token = await getAccessToken();
+      const twitterId = user?.twitter?.subject || "";
+      const twitterHandle = user?.twitter?.username || "";
       const res = await fetch(`/api/campaigns/${campaign.id}/eligibility`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ walletAddress }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress, twitterId, twitterHandle }),
       });
 
       const data: EligibilityResponse = await res.json();
@@ -68,7 +66,7 @@ export function useClaimFlow(campaign: CampaignData | null) {
         reason: "Failed to check eligibility. Please try again.",
       });
     }
-  }, [campaign, walletAddress, getAccessToken]);
+  }, [campaign, walletAddress, user]);
 
   const submitClaim = useCallback(async () => {
     if (!campaign || !walletAddress || !eligibility?.signedAuth || !wallet) return;
@@ -109,14 +107,15 @@ export function useClaimFlow(campaign: CampaignData | null) {
       setClaimedAmount(eligibility.claimAmount || "0");
 
       // Record claim in DB
-      const token = await getAccessToken();
       await fetch(`/api/campaigns/${campaign.id}/claim`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ walletAddress, txHash: hash }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress,
+          txHash: hash,
+          twitterId,
+          twitterHandle: user?.twitter?.username || "unknown",
+        }),
       });
 
       setState("CLAIMED_SUCCESS");
@@ -124,7 +123,7 @@ export function useClaimFlow(campaign: CampaignData | null) {
       console.error("Claim failed:", err);
       setState("ELIGIBLE_READY_TO_CLAIM");
     }
-  }, [campaign, walletAddress, eligibility, wallet, user, getAccessToken]);
+  }, [campaign, walletAddress, eligibility, wallet, user]);
 
   return {
     state: determineState() === "LOADING" && state !== "LOADING" ? state : determineState(),

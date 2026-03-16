@@ -196,6 +196,7 @@ export function CreateCampaignForm({
           tiers,
           eligibilityRules: form.rules,
           onChainId: 0, // Will be updated from event
+          creatorWallet: wallet.address,
         }),
       });
 

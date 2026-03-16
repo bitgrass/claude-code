@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { verifyPrivyToken } from "@/lib/privy";
+import type { Campaign, Claim } from "@prisma/client";
+import { getDb } from "@/lib/db";
 import { evaluateEligibility } from "@/lib/eligibility";
 import { signClaimAuthorization } from "@/lib/signer";
 import { rateLimit, cacheGet, cacheSet } from "@/lib/redis";
@@ -11,20 +11,13 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getDb();
   try {
-    // Auth check
-    const user = await verifyPrivyToken(req.headers.get("authorization"));
-    if (!user || !user.twitterId) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
+    const { walletAddress, twitterId, twitterHandle } = await req.json();
 
-    const { walletAddress } = await req.json();
-    if (!walletAddress) {
+    if (!walletAddress || !twitterId) {
       return NextResponse.json(
-        { error: "walletAddress required" },
+        { error: "walletAddress and twitterId required" },
         { status: 400 }
       );
     }
@@ -46,7 +39,7 @@ export async function POST(
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
       include: { claims: true },
-    });
+    }) as (Campaign & { claims: Claim[] }) | null;
 
     if (!campaign) {
       return NextResponse.json(
@@ -68,7 +61,7 @@ export async function POST(
       where: {
         campaignId: params.id,
         OR: [
-          { twitterId: user.twitterId },
+          { twitterId },
           { walletAddress: walletAddress.toLowerCase() },
         ],
       },
@@ -92,7 +85,7 @@ export async function POST(
     }
 
     // Check cached result
-    const cacheKey = `eligibility:${params.id}:${user.twitterId}:${walletAddress}`;
+    const cacheKey = `eligibility:${params.id}:${twitterId}:${walletAddress}`;
     const cached = await cacheGet<{
       eligible: boolean;
       checks: unknown[];
@@ -106,7 +99,7 @@ export async function POST(
       const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
       eligibilityResult = await evaluateEligibility(
         rules,
-        user.twitterId,
+        twitterId,
         walletAddress
       );
       await cacheSet(cacheKey, eligibilityResult, 60);
@@ -134,7 +127,7 @@ export async function POST(
     const signedAuth = await signClaimAuthorization(
       campaign.onChainId,
       walletAddress,
-      user.twitterId,
+      twitterId,
       claimAmount
     );
 

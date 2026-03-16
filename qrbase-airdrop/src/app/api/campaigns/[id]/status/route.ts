@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import type { Campaign, Claim } from "@prisma/client";
+import { getDb } from "@/lib/db";
 import type { RewardTier } from "@/types";
 
 // GET /api/campaigns/[id]/status — Live slot counter (polled every 10s)
@@ -7,6 +8,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getDb();
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
@@ -15,7 +17,7 @@ export async function GET(
         take: 10,
       },
     },
-  });
+  }) as (Campaign & { claims: Claim[] }) | null;
 
   if (!campaign) {
     return NextResponse.json(

@@ -28,7 +28,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           logo: "https://airdrop.qrbase.xyz/logo.png",
         },
         embeddedWallets: {
-          createOnLogin: "users-without-wallets",
+          createOnLogin: "off",
         },
         defaultChain: base,
         supportedChains: [base, baseSepolia],

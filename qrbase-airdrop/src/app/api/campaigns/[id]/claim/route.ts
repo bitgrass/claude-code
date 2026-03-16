@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { verifyPrivyToken } from "@/lib/privy";
+import type { Campaign, Claim } from "@prisma/client";
+import { getDb } from "@/lib/db";
 import type { RewardTier } from "@/types";
 
 // POST /api/campaigns/[id]/claim — Record claim after on-chain success
@@ -8,18 +8,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getDb();
   try {
-    const user = await verifyPrivyToken(req.headers.get("authorization"));
-    if (!user || !user.twitterId) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
+    const { walletAddress, txHash, twitterId, twitterHandle } = await req.json();
 
-    const { walletAddress, txHash } = await req.json();
-
-    if (!walletAddress || !txHash) {
+    if (!walletAddress || !txHash || !twitterId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -29,7 +22,7 @@ export async function POST(
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
       include: { claims: { orderBy: { slotNumber: "asc" } } },
-    });
+    }) as (Campaign & { claims: Claim[] }) | null;
 
     if (!campaign) {
       return NextResponse.json(
@@ -51,8 +44,8 @@ export async function POST(
     const claim = await prisma.claim.create({
       data: {
         campaignId: params.id,
-        twitterId: user.twitterId,
-        twitterHandle: user.twitterHandle || "unknown",
+        twitterId,
+        twitterHandle: twitterHandle || "unknown",
         walletAddress: walletAddress.toLowerCase(),
         usdcAmount,
         slotNumber,
