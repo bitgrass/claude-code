@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       maxRecipients: number;
       tiers: RewardTier[];
       eligibilityRules: EligibilityRule[];
-      onChainId: number;
+      onChainId: string | number;
       creatorWallet: string;
     };
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     const campaign = await prisma.campaign.create({
       data: {
-        onChainId,
+        onChainId: String(onChainId),
         creatorWallet: walletAddress.toLowerCase(),
         name,
         tokenSymbol,

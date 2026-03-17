@@ -8,8 +8,15 @@ import { SlotCounter } from "./SlotCounter";
 import { EligibilityChecks } from "./EligibilityChecks";
 import { ClaimButton } from "./ClaimButton";
 import { ClaimSuccess } from "./ClaimSuccess";
+import dynamic from "next/dynamic";
 import { useClaimFlow } from "@/hooks/useClaimFlow";
 import { useCampaignStatus } from "@/hooks/useCampaignStatus";
+import type { FarcasterIdentity } from "@/components/claim/FarcasterAuthSection";
+
+const FarcasterAuthSection = dynamic(
+  () => import("@/components/claim/FarcasterAuthSection").then((m) => ({ default: m.FarcasterAuthSection })),
+  { ssr: false }
+);
 import type { CampaignData } from "@/types";
 
 function formatUsdc(amount: string): string {
@@ -19,6 +26,8 @@ function formatUsdc(amount: string): string {
 export function ClaimPage({ campaignId }: { campaignId: string }) {
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [farcasterIdentity, setFarcasterIdentity] = useState<FarcasterIdentity | null>(null);
+  const [showFarcasterLogin, setShowFarcasterLogin] = useState(false);
   const { status } = useCampaignStatus(campaignId);
 
   useEffect(() => {
@@ -41,28 +50,8 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
     submitClaim,
     walletAddress,
     twitterHandle,
-  } = useClaimFlow(campaign);
+  } = useClaimFlow(campaign, farcasterIdentity);
 
-  // Auto-trigger eligibility check
-  useEffect(() => {
-    if (
-      state === "LOGGED_IN_NO_WALLET" &&
-      walletAddress
-    ) {
-      checkEligibility();
-    }
-  }, [state, walletAddress, checkEligibility]);
-
-  useEffect(() => {
-    if (
-      campaign &&
-      walletAddress &&
-      (state === "NOT_LOGGED_IN" || state === "LOGGED_IN_NO_WALLET")
-    ) {
-      checkEligibility();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletAddress]);
 
   if (loadError) {
     return (
@@ -205,35 +194,30 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
                     Check your eligibility
                   </h2>
                   <p className="text-muted">
-                    Sign in with your X account to see if you qualify for this
-                    reward.
+                    Sign in to see if you qualify for this reward.
                   </p>
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    onClick={login}
-                  >
+                  <Button size="lg" className="w-full" onClick={login}>
                     Sign in with X
                   </Button>
+                  {showFarcasterLogin ? (
+                    <FarcasterAuthSection onAuthenticated={setFarcasterIdentity} />
+                  ) : (
+                    <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700" onClick={() => setShowFarcasterLogin(true)}>
+                      Sign in with Farcaster
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {/* LOGGED_IN_NO_WALLET */}
-              {state === "LOGGED_IN_NO_WALLET" && (
-                <div className="text-center space-y-4">
-                  {twitterHandle && (
-                    <p className="text-sm text-muted">
-                      Signed in as{" "}
-                      <span className="font-medium text-gray-700">
-                        @{twitterHandle}
-                      </span>
-                    </p>
-                  )}
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Connect your Base wallet
+              {/* ELIGIBLE_NEED_WALLET */}
+              {state === "ELIGIBLE_NEED_WALLET" && eligibility && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold text-gray-900 text-center">
+                    You&apos;re eligible!
                   </h2>
-                  <p className="text-muted">
-                    Connect or create a wallet to continue.
+                  <EligibilityChecks checks={eligibility.checks} />
+                  <p className="text-muted text-sm text-center">
+                    Connect a Base wallet to receive your USDC reward.
                   </p>
                   <Button size="lg" className="w-full" onClick={login}>
                     Connect Wallet

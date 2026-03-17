@@ -1,27 +1,38 @@
-const QRBASE_API_URL = process.env.QRBASE_API_URL || "https://api.qrbase.xyz";
-const QRBASE_API_SECRET = process.env.QRBASE_API_SECRET || "";
+export interface QRbaseGameStatus {
+  userId: string;
+  freeChances: number;
+  paidChances: number;
+  totalChances: number;
+  canPlay: boolean;
+  winsToday: number;
+  winsAllTime: number;
+  level: number;
+  winRate: number;
+  totalPlays: number;
+  totalLosses: number;
+  tokenWins: Record<string, number>;
+  progressToNextLevel: number;
+  displayName: string;
+  profilePhoto: string | null;
+}
 
-export async function getPuzzleWins(
-  twitterId: string,
-  token: string
-): Promise<number> {
-  const url = `${QRBASE_API_URL}/users/${twitterId}/contributions?token=${token}`;
+export async function getGameStatus(
+  handle: string,
+  platform: "twitter" | "farcaster" = "twitter"
+): Promise<QRbaseGameStatus | null> {
+  const prefix = platform === "farcaster" ? "fc" : "x";
+  const url = `https://www.qrbase.xyz/api/game/status?userId=${prefix}:${handle}`;
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${QRBASE_API_SECRET}`,
-      "Content-Type": "application/json",
-    },
-    next: { revalidate: 60 },
-  });
-
-  if (!response.ok) {
-    console.error(
-      `QRbase API error: ${response.status} for twitterId=${twitterId}`
-    );
-    return 0;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`QRbase game status error: ${response.status} for ${handle}`);
+      return null;
+    }
+    const data = await response.json() as { success: boolean; data: QRbaseGameStatus };
+    return data.success ? data.data : null;
+  } catch (err) {
+    console.error("getGameStatus error:", err);
+    return null;
   }
-
-  const data = await response.json();
-  return data.wins ?? data.count ?? 0;
 }

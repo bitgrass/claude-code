@@ -1,6 +1,6 @@
 export interface EligibilityRule {
-  type: "puzzle_wins" | "token_balance";
-  token: string;
+  type: "puzzle_wins" | "token_balance" | "min_level" | "min_wins" | "min_winrate";
+  token?: string; // for puzzle_wins and token_balance
   min: number;
 }
 
@@ -11,7 +11,7 @@ export interface RewardTier {
 
 export interface CampaignData {
   id: string;
-  onChainId: number;
+  onChainId: string;
   name: string;
   tokenSymbol: string;
   tokenAddress: string;
@@ -70,10 +70,10 @@ export type ClaimPageState =
   | "CAMPAIGN_FULL"
   | "CAMPAIGN_CLOSED"
   | "NOT_LOGGED_IN"
-  | "LOGGED_IN_NO_WALLET"
   | "CHECKING_ELIGIBILITY"
   | "INELIGIBLE"
   | "ALREADY_CLAIMED"
+  | "ELIGIBLE_NEED_WALLET"
   | "ELIGIBLE_READY_TO_CLAIM"
   | "CLAIMING"
   | "CLAIMED_SUCCESS";

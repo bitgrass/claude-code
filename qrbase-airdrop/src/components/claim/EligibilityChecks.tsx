@@ -3,6 +3,7 @@
 import type { EligibilityCheck } from "@/types";
 
 export function EligibilityChecks({ checks }: { checks: EligibilityCheck[] }) {
+  if (!checks?.length) return null;
   return (
     <div className="space-y-3">
       {checks.map((check, i) => (

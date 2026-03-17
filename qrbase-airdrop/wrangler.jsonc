@@ -16,6 +16,9 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "routes": [
+    { "pattern": "airdrop.qrbase.xyz/*", "zone_name": "qrbase.xyz" }
+  ],
   "observability": {
     "enabled": true
   },
@@ -25,7 +28,8 @@
     "NEXT_PUBLIC_USDC_ADDRESS": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "NEXT_PUBLIC_SCAN_TOKEN_ADDRESS": "0x20429F731096e359910921994A267d32ef576720",
     "NEXT_PUBLIC_AIRDROP_CONTRACT": "0x928F40B1De0853bADF2fB2230e83aD4C54C764e4",
-    "NEXT_PUBLIC_PRIVY_APP_ID": "cmbqbbsqm00kljy0n1yzjeij7",
+    "NEXT_PUBLIC_PRIVY_APP_ID": "cmiqj3rdf003fle0cjvt9egb5",
+    "NEXT_PUBLIC_FARCASTER_PRIVY_APP_ID": "cmeifjj1400sakv0b2dn2fjz7",
     "QRBASE_API_URL": "https://qrbase.xyz/api"
   }
 }

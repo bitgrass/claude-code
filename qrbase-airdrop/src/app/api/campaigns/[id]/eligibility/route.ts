@@ -13,18 +13,23 @@ export async function POST(
 ) {
   const prisma = getDb();
   try {
-    const { walletAddress, twitterId, twitterHandle } = await req.json();
+    const { walletAddress, twitterId, twitterHandle, platform = "twitter" } = await req.json() as {
+      walletAddress: string;
+      twitterId: string;
+      twitterHandle: string;
+      platform?: "twitter" | "farcaster";
+    };
 
-    if (!walletAddress || !twitterId) {
+    if (!twitterId) {
       return NextResponse.json(
-        { error: "walletAddress and twitterId required" },
+        { error: "twitterId required" },
         { status: 400 }
       );
     }
 
-    // Rate limit: 5 attempts per minute per wallet
+    // Rate limit: 5 attempts per minute per user
     const { allowed } = await rateLimit(
-      `eligibility:${walletAddress}`,
+      `eligibility:${twitterId}`,
       5,
       60
     );
@@ -57,14 +62,10 @@ export async function POST(
     }
 
     // Check already claimed
+    const orConditions: { twitterId?: string; walletAddress?: string }[] = [{ twitterId }];
+    if (walletAddress) orConditions.push({ walletAddress: walletAddress.toLowerCase() });
     const existingClaim = await prisma.claim.findFirst({
-      where: {
-        campaignId: params.id,
-        OR: [
-          { twitterId },
-          { walletAddress: walletAddress.toLowerCase() },
-        ],
-      },
+      where: { campaignId: params.id, OR: orConditions },
     });
 
     if (existingClaim) {
@@ -85,7 +86,7 @@ export async function POST(
     }
 
     // Check cached result
-    const cacheKey = `eligibility:${params.id}:${twitterId}:${walletAddress}`;
+    const cacheKey = `eligibility:${params.id}:${twitterHandle}:${walletAddress}`;
     const cached = await cacheGet<{
       eligible: boolean;
       checks: unknown[];
@@ -99,8 +100,9 @@ export async function POST(
       const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
       eligibilityResult = await evaluateEligibility(
         rules,
-        twitterId,
-        walletAddress
+        twitterHandle,
+        walletAddress,
+        platform
       );
       await cacheSet(cacheKey, eligibilityResult, 60);
     }
@@ -125,7 +127,7 @@ export async function POST(
 
     // Sign authorization
     const signedAuth = await signClaimAuthorization(
-      campaign.onChainId,
+      Number(campaign.onChainId),
       walletAddress,
       twitterId,
       claimAmount

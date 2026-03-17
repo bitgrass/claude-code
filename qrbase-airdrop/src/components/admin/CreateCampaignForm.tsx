@@ -195,7 +195,7 @@ export function CreateCampaignForm({
           maxRecipients,
           tiers,
           eligibilityRules: form.rules,
-          onChainId: 0, // Will be updated from event
+          onChainId: Date.now(),
           creatorWallet: wallet.address,
         }),
       });

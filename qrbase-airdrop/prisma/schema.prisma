@@ -9,7 +9,7 @@ datasource db {
 
 model Campaign {
   id              String    @id @default(cuid())
-  onChainId       Int       @unique
+  onChainId       String
   creatorWallet   String
   name            String
   tokenSymbol     String    // e.g. "SCAN"
