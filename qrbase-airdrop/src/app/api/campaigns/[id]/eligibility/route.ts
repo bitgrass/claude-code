@@ -125,6 +125,15 @@ export async function POST(
       claimAmount = BigInt(tiers[slotIndex]?.amount || 0);
     }
 
+    // If no wallet yet, return eligible without signature — frontend shows connect-wallet step
+    if (!walletAddress) {
+      return NextResponse.json({
+        eligible: true,
+        checks: eligibilityResult.checks,
+        claimAmount: claimAmount.toString(),
+      });
+    }
+
     // Sign authorization
     const signedAuth = await signClaimAuthorization(
       Number(campaign.onChainId),

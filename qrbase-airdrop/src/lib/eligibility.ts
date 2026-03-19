@@ -59,6 +59,10 @@ export async function evaluateEligibility(
         required: `${rule.min}%`,
       });
     } else if (rule.type === "token_balance") {
+      if (!walletAddress) {
+        // Skip balance check until wallet is connected — re-check will verify it
+        continue;
+      }
       const tokenAddress = process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
       const { balance, decimals } = await getTokenBalance(tokenAddress, walletAddress);
       const balanceInTokens = Number(balance) / 10 ** decimals;

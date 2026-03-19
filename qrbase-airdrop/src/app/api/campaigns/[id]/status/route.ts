@@ -3,21 +3,23 @@ import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import type { RewardTier } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/campaigns/[id]/status — Live slot counter (polled every 10s)
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const prisma = getDb();
-  const campaign = await prisma.campaign.findUnique({
-    where: { id: params.id },
-    include: {
-      claims: {
-        orderBy: { claimedAt: "desc" },
-        take: 10,
-      },
-    },
-  }) as (Campaign & { claims: Claim[] }) | null;
+  const [campaign, claimedCount, recentClaims] = await Promise.all([
+    prisma.campaign.findUnique({ where: { id: params.id } }) as Promise<Campaign | null>,
+    prisma.claim.count({ where: { campaignId: params.id } }),
+    prisma.claim.findMany({
+      where: { campaignId: params.id },
+      orderBy: { claimedAt: "desc" },
+      take: 10,
+    }) as Promise<Claim[]>,
+  ]);
 
   if (!campaign) {
     return NextResponse.json(
@@ -26,7 +28,6 @@ export async function GET(
     );
   }
 
-  const claimedCount = campaign.claims.length;
   const slotsRemaining = campaign.maxRecipients - claimedCount;
   const tiers = campaign.tiers as unknown as RewardTier[];
 
@@ -39,17 +40,20 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({
-    slotsRemaining,
-    totalSlots: campaign.maxRecipients,
-    claimedCount,
-    nextRewardAmount,
-    isActive: campaign.isActive,
-    recentClaims: campaign.claims.map((cl) => ({
-      handle: cl.twitterHandle,
-      slotNumber: cl.slotNumber,
-      amount: cl.usdcAmount.toString(),
-      time: cl.claimedAt.toISOString(),
-    })),
-  });
+  return NextResponse.json(
+    {
+      slotsRemaining,
+      totalSlots: campaign.maxRecipients,
+      claimedCount,
+      nextRewardAmount,
+      isActive: campaign.isActive,
+      recentClaims: recentClaims.map((cl) => ({
+        handle: cl.twitterHandle,
+        slotNumber: cl.slotNumber,
+        amount: cl.usdcAmount.toString(),
+        time: cl.claimedAt.toISOString(),
+      })),
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

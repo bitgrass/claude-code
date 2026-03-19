@@ -10,7 +10,7 @@ export function useCampaignStatus(campaignId: string) {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/status`);
+      const res = await fetch(`/api/campaigns/${campaignId}/status`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch status");
       const data = await res.json();
       setStatus(data);

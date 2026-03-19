@@ -7,13 +7,12 @@ import type {
   EligibilityResponse,
   CampaignData,
 } from "@/types";
-import type { FarcasterIdentity } from "@/components/claim/FarcasterAuthSection";
 
 export function useClaimFlow(
   campaign: CampaignData | null,
-  farcasterIdentity?: FarcasterIdentity | null
+  platform: "twitter" | "farcaster"
 ) {
-  const { authenticated, user, login } = usePrivy();
+  const { authenticated, user, login, connectWallet } = usePrivy();
   const { wallets } = useWallets();
 
   const [state, setState] = useState<ClaimPageState>("LOADING");
@@ -24,19 +23,18 @@ export function useClaimFlow(
   const wallet = wallets[0];
   const walletAddress = wallet?.address || user?.wallet?.address;
 
-  // Resolve which platform/identity to use
-  const platform = farcasterIdentity?.fid ? "farcaster" : "twitter";
-  const userId = platform === "farcaster"
-    ? farcasterIdentity!.fid
-    : (user?.twitter?.subject || "");
-  // For QRbase API: Twitter uses handle, Farcaster uses FID (e.g. fc:1005896)
-  const userHandle = platform === "farcaster"
-    ? farcasterIdentity!.fid
-    : (user?.twitter?.username || "");
+  const userId =
+    platform === "farcaster"
+      ? user?.farcaster?.fid ? String(user.farcaster.fid) : ""
+      : user?.twitter?.subject || "";
 
-  const isLoggedIn = authenticated || !!farcasterIdentity?.fid;
+  const userHandle =
+    platform === "farcaster"
+      ? user?.farcaster?.fid ? String(user.farcaster.fid) : ""
+      : user?.twitter?.username || "";
 
-  // Eligibility check — wallet is optional (needed only for token_balance rules)
+  const isLoggedIn = authenticated;
+
   const checkEligibility = useCallback(async () => {
     if (!campaign || !isLoggedIn) return;
 
@@ -90,26 +88,19 @@ export function useClaimFlow(
     }
   }, [campaign, isLoggedIn, walletAddress, userId, userHandle, platform]);
 
-  // Auto-check eligibility once authenticated (Twitter)
+  // Auto-check eligibility once authenticated (covers both Twitter and Farcaster)
   useEffect(() => {
     if (campaign && authenticated) {
       checkEligibility();
     }
-  }, [authenticated, campaign]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authenticated, campaign]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-check eligibility once Farcaster identity arrives
+  // When wallet address becomes available and we don't have a signed auth yet, re-check
   useEffect(() => {
-    if (campaign && farcasterIdentity?.fid) {
+    if (walletAddress && isLoggedIn && !eligibility?.signedAuth) {
       checkEligibility();
     }
-  }, [farcasterIdentity?.fid, campaign]);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When wallet connects and user is eligible, upgrade state
-  useEffect(() => {
-    if (walletAddress && state === "ELIGIBLE_NEED_WALLET") {
-      setState("ELIGIBLE_READY_TO_CLAIM");
-    }
-  }, [walletAddress, state]);
+  }, [walletAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
@@ -129,24 +120,38 @@ export function useClaimFlow(
 
     try {
       const provider = await wallet.getEthereumProvider();
-      const { encodeFunctionData } = await import("viem");
+      const { createPublicClient, createWalletClient, custom, http } = await import("viem");
+      const { base } = await import("viem/chains");
       const { QRBASE_AIRDROP_ABI } = await import("@/lib/contract");
 
-      const data = encodeFunctionData({
+      const contractAddress = (process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "") as `0x${string}`;
+      const claimArgs = [
+        BigInt(campaign.onChainId),
+        userId,
+        eligibility.signedAuth as `0x${string}`,
+      ] as const;
+
+      const publicClient = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
+      const gasEstimate = await publicClient.estimateContractGas({
+        address: contractAddress,
         abi: QRBASE_AIRDROP_ABI,
         functionName: "claimReward",
-        args: [
-          BigInt(campaign.onChainId),
-          userId,
-          eligibility.signedAuth as `0x${string}`,
-        ],
+        args: claimArgs,
+        account: walletAddress as `0x${string}`,
       });
 
-      const contractAddress = process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "";
+      const walletClient = createWalletClient({
+        account: walletAddress as `0x${string}`,
+        chain: base,
+        transport: custom(provider),
+      });
 
-      const hash = await provider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: walletAddress, to: contractAddress, data }],
+      const hash = await walletClient.writeContract({
+        address: contractAddress,
+        abi: QRBASE_AIRDROP_ABI,
+        functionName: "claimReward",
+        args: claimArgs,
+        gas: gasEstimate,
       });
 
       setTxHash(hash as string);
@@ -176,10 +181,11 @@ export function useClaimFlow(
     txHash,
     claimedAmount,
     login,
+    connectWallet,
     checkEligibility,
     submitClaim,
     walletAddress,
     twitterHandle: userHandle || null,
-    twitterAvatar: user?.twitter?.profilePictureUrl || null,
+    twitterAvatar: platform === "twitter" ? (user?.twitter?.profilePictureUrl || null) : null,
   };
 }

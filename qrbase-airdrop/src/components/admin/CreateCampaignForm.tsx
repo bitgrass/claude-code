@@ -168,7 +168,7 @@ export function CreateCampaignForm({
         ],
       });
 
-      await provider.request({
+      const createTxHash = await provider.request({
         method: "eth_sendTransaction",
         params: [
           {
@@ -177,7 +177,14 @@ export function CreateCampaignForm({
             data: createData,
           },
         ],
-      });
+      }) as `0x${string}`;
+
+      // Wait for receipt and extract the real campaignId from CampaignCreated event
+      const { publicClient, QRBASE_AIRDROP_ABI: ABI } = await import("@/lib/contract");
+      const { parseEventLogs } = await import("viem");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: createTxHash });
+      const logs = parseEventLogs({ abi: ABI, eventName: "CampaignCreated", logs: receipt.logs });
+      const onChainId = logs[0].args.campaignId.toString();
 
       // Step 2: Create DB record via API
       const token = await getAccessToken();
@@ -195,7 +202,7 @@ export function CreateCampaignForm({
           maxRecipients,
           tiers,
           eligibilityRules: form.rules,
-          onChainId: Date.now(),
+          onChainId,
           creatorWallet: wallet.address,
         }),
       });

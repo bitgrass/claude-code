@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import type { CampaignData } from "@/types";
 
 const steps = [
   {
@@ -62,17 +58,6 @@ const steps = [
 ];
 
 export default function HomePage() {
-  const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/campaigns?active=true")
-      .then((res) => res.json())
-      .then((data) => setCampaigns(data.campaigns || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
     <div className="min-h-screen qr-pattern">
       {/* Header */}
@@ -165,109 +150,6 @@ export default function HomePage() {
             </motion.div>
           ))}
         </div>
-      </section>
-
-      {/* Active Campaigns */}
-      <section className="max-w-4xl mx-auto px-4 pb-20">
-        <h2 className="text-center text-sm font-semibold text-muted uppercase tracking-widest mb-8">
-          Active Campaigns
-        </h2>
-
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-          </div>
-        ) : campaigns.length === 0 ? (
-          <Card className="text-center py-8 px-6">
-            <p className="text-muted">No active campaigns right now.</p>
-            <p className="text-muted text-sm mt-1">
-              Follow{" "}
-              <a
-                href="https://twitter.com/QRbase_Bot"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                @QRbase_Bot
-              </a>{" "}
-              for future QR challenges.
-            </p>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {campaigns.map((campaign) => {
-              const pool = Number(campaign.totalUsdc) / 1e6;
-              const slotsLeft =
-                campaign.maxRecipients - (campaign.claimedCount || 0);
-              const progress =
-                ((campaign.claimedCount || 0) / campaign.maxRecipients) *
-                100;
-
-              return (
-                <motion.div
-                  key={campaign.id}
-                  whileHover={{ scale: 1.01 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Link href={`/claim/${campaign.id}`}>
-                    <Card className="p-5 hover:border-primary/30 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {campaign.name}
-                          </h3>
-                          <Badge variant="success">Active</Badge>
-                        </div>
-                        <span className="text-xs font-medium text-primary">
-                          ${campaign.tokenSymbol}
-                        </span>
-                      </div>
-                      <div className="flex items-end justify-between mb-3">
-                        <p className="text-2xl font-bold text-gray-900">
-                          ${pool.toLocaleString()}{" "}
-                          <span className="text-muted text-sm font-normal">
-                            USDC
-                          </span>
-                        </p>
-                        <p className="text-sm text-muted">
-                          {slotsLeft} slots remaining
-                        </p>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary to-accent-purple rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </Card>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* How to win */}
-      <section className="max-w-4xl mx-auto px-4 pb-20">
-        <Card className="text-center p-8">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">
-            How to Win Future Campaigns
-          </h3>
-          <p className="text-muted text-sm mb-4">
-            Follow @QRbase_Bot on X, solve QR puzzles in SCAN MODE, and
-            hold $SCAN tokens to be eligible for USDC rewards.
-          </p>
-          <a
-            href="https://twitter.com/QRbase_Bot"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" size="md">
-              Follow @QRbase_Bot on X
-            </Button>
-          </a>
-        </Card>
       </section>
 
       {/* Footer */}

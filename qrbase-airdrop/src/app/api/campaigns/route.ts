@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/campaigns — List campaigns
 export async function GET(req: NextRequest) {
   const prisma = getDb();
@@ -17,13 +19,14 @@ export async function GET(req: NextRequest) {
     const campaigns = await prisma.campaign.findMany({
       where,
       include: {
+        _count: { select: { claims: true } },
         claims: {
           orderBy: { claimedAt: "desc" },
           take: 10,
         },
       },
       orderBy: { createdAt: "desc" },
-    }) as (Campaign & { claims: Claim[] })[];
+    }) as (Campaign & { claims: Claim[]; _count: { claims: number } })[];
 
     const enriched = campaigns.map((c) => ({
       id: c.id,
@@ -38,14 +41,14 @@ export async function GET(req: NextRequest) {
       isActive: c.isActive,
       createdAt: c.createdAt.toISOString(),
       closedAt: c.closedAt?.toISOString() || null,
-      claimedCount: c.claims.length,
+      claimedCount: c._count.claims,
       claims: c.claims.map((cl) => ({
         ...cl,
         usdcAmount: cl.usdcAmount.toString(),
       })),
     }));
 
-    return NextResponse.json({ campaigns: enriched });
+    return NextResponse.json({ campaigns: enriched }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("List campaigns error:", error);
     return NextResponse.json({ error: "Failed to fetch campaigns" }, { status: 500 });

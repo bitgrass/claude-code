@@ -8,27 +8,24 @@ import { SlotCounter } from "./SlotCounter";
 import { EligibilityChecks } from "./EligibilityChecks";
 import { ClaimButton } from "./ClaimButton";
 import { ClaimSuccess } from "./ClaimSuccess";
-import dynamic from "next/dynamic";
 import { useClaimFlow } from "@/hooks/useClaimFlow";
 import { useCampaignStatus } from "@/hooks/useCampaignStatus";
-import type { FarcasterIdentity } from "@/components/claim/FarcasterAuthSection";
-
-const FarcasterAuthSection = dynamic(
-  () => import("@/components/claim/FarcasterAuthSection").then((m) => ({ default: m.FarcasterAuthSection })),
-  { ssr: false }
-);
 import type { CampaignData } from "@/types";
 
 function formatUsdc(amount: string): string {
   return `$${(Number(amount) / 1e6).toLocaleString()}`;
 }
 
-export function ClaimPage({ campaignId }: { campaignId: string }) {
+export function ClaimPage({
+  campaignId,
+  platform,
+}: {
+  campaignId: string;
+  platform: "twitter" | "farcaster";
+}) {
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [farcasterIdentity, setFarcasterIdentity] = useState<FarcasterIdentity | null>(null);
-  const [showFarcasterLogin, setShowFarcasterLogin] = useState(false);
-  const { status } = useCampaignStatus(campaignId);
+  const { status, refetch: refetchStatus } = useCampaignStatus(campaignId);
 
   useEffect(() => {
     fetch(`/api/campaigns/${campaignId}`)
@@ -36,7 +33,7 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
         if (!res.ok) throw new Error("Not found");
         return res.json();
       })
-      .then((data) => setCampaign(data.campaign))
+      .then((data) => { setCampaign(data.campaign); })
       .catch(() => setLoadError(true));
   }, [campaignId]);
 
@@ -46,23 +43,29 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
     txHash,
     claimedAmount,
     login,
+    connectWallet,
     checkEligibility,
     submitClaim,
     walletAddress,
-    twitterHandle,
-  } = useClaimFlow(campaign, farcasterIdentity);
+  } = useClaimFlow(campaign, platform);
 
+  // Suppress unused variable warning — checkEligibility exposed for external retry use
+  void checkEligibility;
+  void walletAddress;
+
+  // Refresh slot counter immediately after a successful claim
+  useEffect(() => {
+    if (state === "CLAIMED_SUCCESS") refetchStatus();
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const backUrl = `/claim/${campaignId}`;
 
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 qr-pattern">
         <Card className="p-8 text-center max-w-md">
-          <p className="text-xl font-semibold text-gray-900 mb-2">
-            Campaign not found
-          </p>
-          <p className="text-muted">
-            This campaign may have been removed or the URL is incorrect.
-          </p>
+          <p className="text-xl font-semibold text-gray-900 mb-2">Campaign not found</p>
+          <p className="text-muted">This campaign may have been removed or the URL is incorrect.</p>
         </Card>
       </div>
     );
@@ -70,7 +73,6 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
 
   return (
     <div className="min-h-screen qr-pattern">
-      {/* Header banner */}
       <div className="gradient-banner py-3 px-4 text-center">
         <p className="text-white text-sm font-medium">
           QRbase Airdrop &mdash; Claim your USDC reward on Base
@@ -78,35 +80,35 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
+        {/* Back link */}
+        <button
+          onClick={() => { window.location.href = backUrl; }}
+          className="text-sm text-muted hover:text-gray-900 flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+
         {/* Campaign info card */}
         {campaign && (
           <Card className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h1 className="text-xl font-bold text-gray-900">
-                  {campaign.name}
-                </h1>
-                <span className="text-sm font-medium text-primary">
-                  ${campaign.tokenSymbol}
-                </span>
+                <h1 className="text-xl font-bold text-gray-900">{campaign.name}</h1>
+                <span className="text-sm font-medium text-primary">${campaign.tokenSymbol}</span>
               </div>
-
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div className="bg-surface-muted rounded-xl p-3">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatUsdc(campaign.totalUsdc)}
-                  </p>
+                  <p className="text-2xl font-bold text-gray-900">{formatUsdc(campaign.totalUsdc)}</p>
                   <p className="text-xs text-muted">Prize Pool</p>
                 </div>
                 <div className="bg-surface-muted rounded-xl p-3">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {campaign.maxRecipients}
-                  </p>
+                  <p className="text-2xl font-bold text-gray-900">{campaign.maxRecipients}</p>
                   <p className="text-xs text-muted">Reward Slots</p>
                 </div>
               </div>
-
-              {/* Slot counter */}
               <SlotCounter status={status} />
             </div>
           </Card>
@@ -122,7 +124,6 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
             transition={{ duration: 0.2 }}
           >
             <Card className="p-6">
-              {/* LOADING */}
               {state === "LOADING" && (
                 <div className="space-y-4 animate-pulse">
                   <div className="h-6 bg-gray-200 rounded w-3/4" />
@@ -132,7 +133,6 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
                 </div>
               )}
 
-              {/* CAMPAIGN_FULL */}
               {state === "CAMPAIGN_FULL" && (
                 <div className="text-center space-y-4">
                   <div className="text-4xl">&#128532;</div>
@@ -141,20 +141,11 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
                   </h2>
                   {status?.recentClaims && status.recentClaims.length > 0 && (
                     <div className="space-y-2 text-left">
-                      <p className="text-sm font-medium text-gray-700">
-                        Winners:
-                      </p>
+                      <p className="text-sm font-medium text-gray-700">Winners:</p>
                       {status.recentClaims.map((claim, i) => (
-                        <div
-                          key={i}
-                          className="flex justify-between text-sm bg-surface-muted p-2 rounded-lg"
-                        >
-                          <span className="text-gray-700">
-                            @{claim.handle}
-                          </span>
-                          <span className="font-medium text-gray-900">
-                            {formatUsdc(claim.amount)}
-                          </span>
+                        <div key={i} className="flex justify-between text-sm bg-surface-muted p-2 rounded-lg">
+                          <span className="text-gray-700">@{claim.handle}</span>
+                          <span className="font-medium text-gray-900">{formatUsdc(claim.amount)}</span>
                         </div>
                       ))}
                     </div>
@@ -174,105 +165,74 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
                 </div>
               )}
 
-              {/* CAMPAIGN_CLOSED */}
               {state === "CAMPAIGN_CLOSED" && (
                 <div className="text-center space-y-4">
                   <div className="text-4xl">&#128274;</div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    This campaign has ended
-                  </h2>
-                  <p className="text-muted">
-                    The campaign creator has closed this airdrop.
-                  </p>
+                  <h2 className="text-xl font-bold text-gray-900">This campaign has ended</h2>
+                  <p className="text-muted">The campaign creator has closed this airdrop.</p>
                 </div>
               )}
 
-              {/* NOT_LOGGED_IN */}
               {state === "NOT_LOGGED_IN" && (
                 <div className="text-center space-y-4">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Check your eligibility
-                  </h2>
-                  <p className="text-muted">
-                    Sign in to see if you qualify for this reward.
-                  </p>
-                  <Button size="lg" className="w-full" onClick={login}>
-                    Sign in with X
-                  </Button>
-                  {showFarcasterLogin ? (
-                    <FarcasterAuthSection onAuthenticated={setFarcasterIdentity} />
+                  <h2 className="text-xl font-bold text-gray-900">Check your eligibility</h2>
+                  <p className="text-muted">Sign in to see if you qualify for this reward.</p>
+                  {platform === "twitter" ? (
+                    <Button size="lg" className="w-full" onClick={login}>
+                      Sign in with X
+                    </Button>
                   ) : (
-                    <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700" onClick={() => setShowFarcasterLogin(true)}>
+                    <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700" onClick={login}>
                       Sign in with Farcaster
                     </Button>
                   )}
                 </div>
               )}
 
-              {/* ELIGIBLE_NEED_WALLET */}
               {state === "ELIGIBLE_NEED_WALLET" && eligibility && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-bold text-gray-900 text-center">
-                    You&apos;re eligible!
-                  </h2>
+                  <h2 className="text-xl font-bold text-gray-900 text-center">You&apos;re eligible!</h2>
                   <EligibilityChecks checks={eligibility.checks} />
                   <p className="text-muted text-sm text-center">
                     Connect a Base wallet to receive your USDC reward.
                   </p>
-                  <Button size="lg" className="w-full" onClick={login}>
+                  <Button size="lg" className="w-full" onClick={connectWallet}>
                     Connect Wallet
                   </Button>
                 </div>
               )}
 
-              {/* CHECKING_ELIGIBILITY */}
               {state === "CHECKING_ELIGIBILITY" && (
                 <div className="text-center space-y-4 py-4">
                   <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-                  <p className="text-gray-700 font-medium">
-                    Checking your eligibility...
-                  </p>
+                  <p className="text-gray-700 font-medium">Checking your eligibility...</p>
                 </div>
               )}
 
-              {/* INELIGIBLE */}
               {state === "INELIGIBLE" && eligibility && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Not eligible yet
-                  </h2>
+                  <h2 className="text-xl font-bold text-gray-900">Not eligible yet</h2>
                   <EligibilityChecks checks={eligibility.checks} />
                   <p className="text-sm text-muted text-center">
                     Keep solving puzzles to qualify!{" "}
-                    <a
-                      href="https://qrbase.xyz"
-                      className="text-primary hover:underline"
-                    >
+                    <a href="https://qrbase.xyz" className="text-primary hover:underline">
                       Go to QRbase &rarr;
                     </a>
                   </p>
                 </div>
               )}
 
-              {/* ALREADY_CLAIMED */}
               {state === "ALREADY_CLAIMED" && (
                 <div className="text-center space-y-4">
                   <div className="text-4xl">&#9989;</div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    You already claimed this reward!
-                  </h2>
-                  <p className="text-muted">
-                    Check your wallet for the USDC.
-                  </p>
+                  <h2 className="text-xl font-bold text-gray-900">You already claimed this reward!</h2>
+                  <p className="text-muted">Check your wallet for the USDC.</p>
                 </div>
               )}
 
-              {/* ELIGIBLE_READY_TO_CLAIM */}
               {state === "ELIGIBLE_READY_TO_CLAIM" && eligibility && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-bold text-gray-900 text-center">
-                    You&apos;re eligible!
-                  </h2>
+                  <h2 className="text-xl font-bold text-gray-900 text-center">You&apos;re eligible!</h2>
                   <EligibilityChecks checks={eligibility.checks} />
                   <ClaimButton
                     amount={eligibility.claimAmount || "0"}
@@ -283,20 +243,14 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
                 </div>
               )}
 
-              {/* CLAIMING */}
               {state === "CLAIMING" && (
                 <div className="text-center space-y-4 py-4">
                   <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-                  <p className="text-gray-700 font-medium">
-                    Sending USDC to your wallet...
-                  </p>
-                  <p className="text-sm text-muted">
-                    Please confirm the transaction in your wallet
-                  </p>
+                  <p className="text-gray-700 font-medium">Sending USDC to your wallet...</p>
+                  <p className="text-sm text-muted">Please confirm the transaction in your wallet</p>
                 </div>
               )}
 
-              {/* CLAIMED_SUCCESS */}
               {state === "CLAIMED_SUCCESS" && txHash && claimedAmount && (
                 <ClaimSuccess amount={claimedAmount} txHash={txHash} />
               )}
@@ -304,18 +258,8 @@ export function ClaimPage({ campaignId }: { campaignId: string }) {
           </motion.div>
         </AnimatePresence>
 
-        {/* Footer */}
         <div className="text-center text-xs text-muted pb-8">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://qrbase.xyz"
-              className="text-primary hover:underline"
-            >
-              QRbase
-            </a>{" "}
-            on Base
-          </p>
+          <p>Powered by <a href="https://qrbase.xyz" className="text-primary hover:underline">QRbase</a> on Base</p>
         </div>
       </div>
     </div>

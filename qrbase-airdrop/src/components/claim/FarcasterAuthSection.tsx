@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+import { base } from "viem/chains";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 
@@ -48,6 +49,8 @@ export function FarcasterAuthSection({
         loginMethods: ["farcaster"],
         appearance: { theme: "light", accentColor: "#8B5CF6" },
         embeddedWallets: { createOnLogin: "off" },
+        defaultChain: base,
+        supportedChains: [base],
       }}
     >
       <FarcasterLoginInner onAuthenticated={onAuthenticated} />
