@@ -3,9 +3,7 @@ import { base, baseSepolia } from "viem/chains";
 
 const chain = process.env.NEXT_PUBLIC_CHAIN_ID === "8453" ? base : baseSepolia;
 
-const rpcUrl = process.env.ALCHEMY_API_KEY
-  ? `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
-  : process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
+const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
 
 export const publicClient = createPublicClient({
   chain,

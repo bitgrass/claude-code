@@ -27,9 +27,19 @@ export async function signClaimAuthorization(
     )
   );
 
+  console.log("=== SIGNER DEBUG ===");
+  console.log("signer address:", account.address);
+  console.log("campaignId:", campaignId);
+  console.log("recipient:", recipient);
+  console.log("twitterId:", twitterId);
+  console.log("amount:", amount.toString());
+  console.log("messageHash:", messageHash);
+
   const signature = await account.signMessage({
     message: { raw: messageHash },
   });
+
+  console.log("signature:", signature);
 
   return signature;
 }

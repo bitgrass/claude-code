@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useLoginWithOAuth } from "@privy-io/react-auth";
 import type {
   ClaimPageState,
   EligibilityResponse,
@@ -12,8 +12,18 @@ export function useClaimFlow(
   campaign: CampaignData | null,
   platform: "twitter" | "farcaster"
 ) {
-  const { authenticated, user, login, connectWallet } = usePrivy();
+  const { authenticated, user, login: privyLogin, connectWallet } = usePrivy();
   const { wallets } = useWallets();
+  const { initOAuth } = useLoginWithOAuth();
+
+  // Use redirect-based OAuth for Twitter (works on mobile); Farcaster uses its own QR/deeplink flow
+  const login = useCallback(() => {
+    if (platform === "twitter") {
+      initOAuth({ provider: "twitter" });
+    } else {
+      privyLogin();
+    }
+  }, [platform, initOAuth, privyLogin]);
 
   const [state, setState] = useState<ClaimPageState>("LOADING");
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
@@ -131,7 +141,8 @@ export function useClaimFlow(
         eligibility.signedAuth as `0x${string}`,
       ] as const;
 
-      const publicClient = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
+      const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
+      const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
       const gasEstimate = await publicClient.estimateContractGas({
         address: contractAddress,
         abi: QRBASE_AIRDROP_ABI,

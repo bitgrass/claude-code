@@ -1,5 +1,4 @@
 import type { EligibilityRule, EligibilityCheck } from "@/types";
-import { getTokenBalance } from "./alchemy";
 import { getGameStatus } from "./qrbase-api";
 
 export async function evaluateEligibility(
@@ -64,8 +63,16 @@ export async function evaluateEligibility(
         continue;
       }
       const tokenAddress = process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
-      const { balance, decimals } = await getTokenBalance(tokenAddress, walletAddress);
-      const balanceInTokens = Number(balance) / 10 ** decimals;
+      const moralisKey = process.env.NEXT_PUBLIC_MORALIS_APY_KEY || "";
+      const moralisRes = await fetch(
+        `https://deep-index.moralis.io/api/v2.2/${walletAddress}/erc20?chain=base&token_addresses%5B0%5D=${tokenAddress}`,
+        { headers: { accept: "application/json", "X-API-Key": moralisKey } }
+      );
+      const moralisData = await moralisRes.json() as { balance?: string; decimals?: string }[];
+      const tokenData = moralisData?.[0];
+      const balanceInTokens = tokenData
+        ? Number(tokenData.balance ?? "0") / 10 ** Number(tokenData.decimals ?? "18")
+        : 0;
       const passed = balanceInTokens >= rule.min;
       if (!passed) allPassed = false;
       checks.push({
