@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { WalletProviders } from "@/components/WalletProviders";
 
 export const metadata: Metadata = {
   title: "QRbase Airdrop — Claim Your USDC Reward on Base",
@@ -19,7 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen qr-pattern">
-        {children}
+        <WalletProviders>{children}</WalletProviders>
       </body>
     </html>
   );

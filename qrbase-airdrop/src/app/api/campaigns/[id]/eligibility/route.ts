@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import { evaluateEligibility } from "@/lib/eligibility";
-import { signClaimAuthorization } from "@/lib/signer";
+import { getFarcasterPrimaryWallet } from "@/lib/neynar";
 import { rateLimit, cacheGet, cacheSet } from "@/lib/redis";
 import type { EligibilityRule, RewardTier } from "@/types";
 
@@ -13,8 +13,9 @@ export async function POST(
 ) {
   const prisma = getDb();
   try {
-    const { walletAddress, twitterId, twitterHandle, platform = "twitter" } = await req.json() as {
-      walletAddress: string;
+    const { walletAddress, eligibilityWallet, twitterId, twitterHandle, platform = "twitter" } = await req.json() as {
+      walletAddress: string;       // claim wallet (RainbowKit) — used for signature
+      eligibilityWallet?: string;  // Privy wallet — used for balance check
       twitterId: string;
       twitterHandle: string;
       platform?: "twitter" | "farcaster";
@@ -61,9 +62,11 @@ export async function POST(
       });
     }
 
-    // Check already claimed
+    // Check already claimed (against both the claim wallet and the eligibility wallet)
     const orConditions: { twitterId?: string; walletAddress?: string }[] = [{ twitterId }];
     if (walletAddress) orConditions.push({ walletAddress: walletAddress.toLowerCase() });
+    if (eligibilityWallet && eligibilityWallet.toLowerCase() !== walletAddress?.toLowerCase())
+      orConditions.push({ walletAddress: eligibilityWallet.toLowerCase() });
     const existingClaim = await prisma.claim.findFirst({
       where: { campaignId: params.id, OR: orConditions },
     });
@@ -85,8 +88,16 @@ export async function POST(
       });
     }
 
+    // For Farcaster: fetch primary verified ETH address from Neynar (wallet set as primary in Warpcast)
+    // For Twitter: use the Privy-linked wallet sent from the client
+    let balanceWallet = eligibilityWallet || walletAddress || "";
+    if (platform === "farcaster" && twitterId) {
+      const neynarWallet = await getFarcasterPrimaryWallet(Number(twitterId));
+      if (neynarWallet) balanceWallet = neynarWallet;
+    }
+
     // Check cached result
-    const cacheKey = `eligibility:${params.id}:${twitterHandle}:${walletAddress}`;
+    const cacheKey = `eligibility:${params.id}:${twitterHandle}:${balanceWallet}`;
     const cached = await cacheGet<{
       eligible: boolean;
       checks: unknown[];
@@ -96,12 +107,12 @@ export async function POST(
     if (cached) {
       eligibilityResult = cached;
     } else {
-      // Evaluate rules
+      // Evaluate rules — use Privy wallet for token balance check
       const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
       eligibilityResult = await evaluateEligibility(
         rules,
         twitterHandle,
-        walletAddress,
+        balanceWallet,
         platform
       );
       await cacheSet(cacheKey, eligibilityResult, 60);
@@ -125,27 +136,10 @@ export async function POST(
       claimAmount = BigInt(tiers[slotIndex]?.amount || 0);
     }
 
-    // If no wallet yet, return eligible without signature — frontend shows connect-wallet step
-    if (!walletAddress) {
-      return NextResponse.json({
-        eligible: true,
-        checks: eligibilityResult.checks,
-        claimAmount: claimAmount.toString(),
-      });
-    }
-
-    // Sign authorization
-    const signedAuth = await signClaimAuthorization(
-      Number(campaign.onChainId),
-      walletAddress,
-      twitterId,
-      claimAmount
-    );
-
+    // Eligibility confirmed — signature is fetched separately at claim time via /sign
     return NextResponse.json({
       eligible: true,
       checks: eligibilityResult.checks,
-      signedAuth,
       claimAmount: claimAmount.toString(),
     });
   } catch (error) {

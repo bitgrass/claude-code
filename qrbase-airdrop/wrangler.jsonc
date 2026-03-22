@@ -30,6 +30,7 @@
     "NEXT_PUBLIC_AIRDROP_CONTRACT": "0x928F40B1De0853bADF2fB2230e83aD4C54C764e4",
     "NEXT_PUBLIC_PRIVY_APP_ID": "cmiqj3rdf003fle0cjvt9egb5",
     "NEXT_PUBLIC_FARCASTER_PRIVY_APP_ID": "cmeifjj1400sakv0b2dn2fjz7",
-    "QRBASE_API_URL": "https://qrbase.xyz/api"
+    "QRBASE_API_URL": "https://qrbase.xyz/api",
+    "NEYNAR_API_KEY": "5A2486A4-261B-4B53-B035-A499DC9AE2C4"
   }
 }

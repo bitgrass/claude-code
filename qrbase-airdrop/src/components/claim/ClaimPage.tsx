@@ -47,11 +47,11 @@ export function ClaimPage({
     checkEligibility,
     submitClaim,
     walletAddress,
+    walletConnected,
   } = useClaimFlow(campaign, platform);
 
-  // Suppress unused variable warning — checkEligibility exposed for external retry use
+  // Suppress unused variable warning
   void checkEligibility;
-  void walletAddress;
 
   // Refresh slot counter immediately after a successful claim
   useEffect(() => {
@@ -194,11 +194,26 @@ export function ClaimPage({
                   <h2 className="text-xl font-bold text-gray-900 text-center">You&apos;re eligible!</h2>
                   <EligibilityChecks checks={eligibility.checks} />
                   <p className="text-muted text-sm text-center">
-                    Connect a Base wallet to receive your USDC reward.
+                    Connect any Base wallet to receive your USDC reward.
+                    This wallet is only used for claiming — it won&apos;t be linked to your social account.
                   </p>
-                  <Button size="lg" className="w-full" onClick={connectWallet}>
-                    Connect Wallet
-                  </Button>
+                  {walletConnected && walletAddress ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between bg-surface-muted rounded-xl px-4 py-3 text-sm">
+                        <span className="text-muted">Connected</span>
+                        <span className="font-mono text-gray-700">
+                          {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+                        </span>
+                      </div>
+                      <Button size="lg" className="w-full" onClick={connectWallet}>
+                        Change Wallet
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="lg" className="w-full" onClick={connectWallet}>
+                      Connect Wallet
+                    </Button>
+                  )}
                 </div>
               )}
 
