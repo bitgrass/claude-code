@@ -9,18 +9,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#FFFFFF",
+        background: "#EFF5FF",
         surface: {
           DEFAULT: "#FFFFFF",
-          muted: "#F8FAFC",
+          muted: "#F0F6FF",
         },
-        border: "#E2E8F0",
+        border: "#D0E1FF",
         primary: {
-          DEFAULT: "#3B82F6",
-          dark: "#2563EB",
+          DEFAULT: "#0052FF",
+          dark: "#003FCC",
+          light: "#EFF5FF",
         },
         accent: {
-          purple: "#8B5CF6",
+          purple: "#7C3AED",
         },
         muted: "#64748B",
         success: "#10B981",
@@ -29,6 +30,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ["'IBM Plex Mono'", "'Noto Sans Mono'", "monospace"],
       },
     },
   },

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500;600;700&display=swap');
 
 @layer base {
   body {
@@ -12,11 +12,30 @@
 
 @layer utilities {
   .qr-pattern {
-    background-image: radial-gradient(circle, rgba(59, 130, 246, 0.04) 1px, transparent 1px);
-    background-size: 20px 20px;
+    background-image: radial-gradient(circle, rgba(0, 82, 255, 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 
   .gradient-banner {
-    background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+    background: linear-gradient(135deg, #0052FF 0%, #7C3AED 100%);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(208, 225, 255, 0.8);
+  }
+
+  .font-mono {
+    font-family: 'IBM Plex Mono', 'Noto Sans Mono', monospace;
+  }
+
+  .step-number {
+    font-family: 'IBM Plex Mono', 'Noto Sans Mono', monospace;
+    font-weight: 700;
+    color: #0052FF;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
   }
 }
