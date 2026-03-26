@@ -1,11 +1,17 @@
 {
   // Set secrets with Wrangler instead of committing them here:
   // wrangler secret put PRIVY_APP_SECRET
+  // wrangler secret put FARCASTER_PRIVY_APP_SECRET
   // wrangler secret put RELAYER_PRIVATE_KEY
   // wrangler secret put QRBASE_API_SECRET
   // wrangler secret put DATABASE_URL
   // wrangler secret put UPSTASH_REDIS_URL
   // wrangler secret put UPSTASH_REDIS_TOKEN
+  // wrangler secret put ADMIN_PASSWORD
+  // wrangler secret put ADMIN_API_KEY
+  // wrangler secret put CDP_API_KEY_NAME
+  // wrangler secret put CDP_API_KEY_PRIVATE_KEY
+  // wrangler secret put CDP_WALLET_SECRET
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "qrbase-airdrop",
   "main": ".open-next/worker.js",
@@ -31,6 +37,8 @@
     "NEXT_PUBLIC_PRIVY_APP_ID": "cmiqj3rdf003fle0cjvt9egb5",
     "NEXT_PUBLIC_FARCASTER_PRIVY_APP_ID": "cmeifjj1400sakv0b2dn2fjz7",
     "QRBASE_API_URL": "https://qrbase.xyz/api",
-    "NEYNAR_API_KEY": "5A2486A4-261B-4B53-B035-A499DC9AE2C4"
+    "NEYNAR_API_KEY": "5A2486A4-261B-4B53-B035-A499DC9AE2C4",
+    "CDP_WALLET_NAME": "spender",
+    "CDP_WALLET_ADDRESS": "0x1f113cF5E3A29c4Eb7Bb4900a8D1b4F8bD5b8680"
   }
 }

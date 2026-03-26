@@ -62,7 +62,7 @@ export async function evaluateEligibility(
         // Skip balance check until wallet is connected — re-check will verify it
         continue;
       }
-      const tokenAddress = process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
+      const tokenAddress = rule.tokenAddress || process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
       const moralisKey = process.env.NEXT_PUBLIC_MORALIS_APY_KEY || "";
       const moralisRes = await fetch(
         `https://deep-index.moralis.io/api/v2.2/${walletAddress}/erc20?chain=base&token_addresses%5B0%5D=${tokenAddress}`,

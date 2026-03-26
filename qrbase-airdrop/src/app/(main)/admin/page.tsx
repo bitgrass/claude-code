@@ -45,6 +45,15 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-3">
             <Link
+              href="/admin/quick-create"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-dark border border-primary rounded-lg px-3 py-1.5 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Quick Create
+            </Link>
+            <Link
               href="/"
               className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-gray-900 border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-surface-muted transition-colors"
             >

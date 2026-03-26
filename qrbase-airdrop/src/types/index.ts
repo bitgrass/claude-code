@@ -1,6 +1,7 @@
 export interface EligibilityRule {
   type: "puzzle_wins" | "token_balance" | "min_level" | "min_wins" | "min_winrate";
-  token?: string; // for puzzle_wins and token_balance
+  token?: string;        // display symbol, e.g. "SCAN" or "PARTNER"
+  tokenAddress?: string; // on-chain CA used for token_balance checks
   min: number;
 }
 

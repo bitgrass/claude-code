@@ -11,9 +11,11 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate --no-engine"
+    "postinstall": "prisma generate --no-engine",
+    "check:cdp-auth": "node scripts/check-cdp-auth.mjs"
   },
   "dependencies": {
+    "@coinbase/cdp-sdk": "^1.45.0",
     "@prisma/client": "^6.16.0",
     "@prisma/extension-accelerate": "^3.0.1",
     "@privy-io/react-auth": "^1.88.0",
