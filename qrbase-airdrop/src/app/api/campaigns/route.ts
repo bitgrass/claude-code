@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { getFarcasterUsers } from "@/lib/neynar";
+import { resolveClaimIdentity } from "@/lib/claimants";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +23,18 @@ export async function GET(req: NextRequest) {
       include: {
         _count: { select: { claims: true } },
         claims: {
-          orderBy: { claimedAt: "desc" },
+          orderBy: [{ slotNumber: "desc" }, { claimedAt: "desc" }],
           take: 10,
         },
       },
       orderBy: { createdAt: "desc" },
     }) as (Campaign & { claims: Claim[]; _count: { claims: number } })[];
+
+    const allClaims = campaigns.flatMap((c) => c.claims);
+    const numericIds = [...new Set(
+      allClaims.map((cl) => cl.twitterId).filter((id) => /^\d+$/.test(id)).map(Number)
+    )];
+    const farcasterUsers = await getFarcasterUsers(numericIds);
 
     const enriched = campaigns.map((c) => ({
       id: c.id,
@@ -42,10 +50,16 @@ export async function GET(req: NextRequest) {
       createdAt: c.createdAt.toISOString(),
       closedAt: c.closedAt?.toISOString() || null,
       claimedCount: c._count.claims,
-      claims: c.claims.map((cl) => ({
-        ...cl,
-        usdcAmount: cl.usdcAmount.toString(),
-      })),
+      claims: c.claims.map((cl) => {
+        const identity = resolveClaimIdentity(cl, farcasterUsers);
+        return {
+          ...cl,
+          usdcAmount: cl.usdcAmount.toString(),
+          twitterHandle: identity.handle,
+          platform: identity.platform,
+          avatar: identity.avatar,
+        };
+      }),
     }));
 
     return NextResponse.json({ campaigns: enriched }, { headers: { "Cache-Control": "no-store" } });

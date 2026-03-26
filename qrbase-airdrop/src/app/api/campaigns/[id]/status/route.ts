@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import type { RewardTier } from "@/types";
+import { getFarcasterUsers } from "@/lib/neynar";
+import { resolveClaimIdentity } from "@/lib/claimants";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/campaigns/[id]/status — Live slot counter (polled every 10s)
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -16,16 +17,13 @@ export async function GET(
     prisma.claim.count({ where: { campaignId: params.id } }),
     prisma.claim.findMany({
       where: { campaignId: params.id },
-      orderBy: { claimedAt: "desc" },
+      orderBy: [{ slotNumber: "desc" }, { claimedAt: "desc" }],
       take: 10,
     }) as Promise<Claim[]>,
   ]);
 
   if (!campaign) {
-    return NextResponse.json(
-      { error: "Campaign not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   const slotsRemaining = campaign.maxRecipients - claimedCount;
@@ -40,6 +38,16 @@ export async function GET(
     }
   }
 
+  const numericIds = recentClaims
+    .map((cl) => cl.twitterId)
+    .filter((id) => /^\d+$/.test(id))
+    .map(Number);
+  const farcasterUsers = await getFarcasterUsers([...new Set(numericIds)]);
+
+  const enrichedClaims = recentClaims.map((cl) =>
+    resolveClaimIdentity(cl, farcasterUsers)
+  );
+
   return NextResponse.json(
     {
       slotsRemaining,
@@ -47,12 +55,7 @@ export async function GET(
       claimedCount,
       nextRewardAmount,
       isActive: campaign.isActive,
-      recentClaims: recentClaims.map((cl) => ({
-        handle: cl.twitterHandle,
-        slotNumber: cl.slotNumber,
-        amount: cl.usdcAmount.toString(),
-        time: cl.claimedAt.toISOString(),
-      })),
+      recentClaims: enrichedClaims,
     },
     { headers: { "Cache-Control": "no-store" } }
   );

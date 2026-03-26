@@ -61,10 +61,10 @@ export function useClaimFlow(
       ? user?.farcaster?.fid ? String(user.farcaster.fid) : ""
       : user?.twitter?.subject || "";
 
-  // userHandle is used for QRbase game status API lookup — uses FID for Farcaster (fc:{fid})
+  // userHandle: Farcaster username preferred, fall back to FID if username unavailable
   const userHandle =
     platform === "farcaster"
-      ? (user?.farcaster?.fid ? String(user.farcaster.fid) : "")
+      ? ((user?.farcaster as unknown as { username?: string })?.username || (user?.farcaster?.fid ? String(user.farcaster.fid) : ""))
       : user?.twitter?.username || "";
 
   const isLoggedIn = authenticated;
@@ -215,6 +215,8 @@ export function useClaimFlow(
     walletAddress,
     walletConnected,
     twitterHandle: userHandle || null,
-    twitterAvatar: platform === "twitter" ? (user?.twitter?.profilePictureUrl || null) : null,
+    twitterAvatar: platform === "twitter"
+      ? (user?.twitter?.profilePictureUrl || null)
+      : ((user?.farcaster as unknown as { pfp?: string })?.pfp || null),
   };
 }

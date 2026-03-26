@@ -34,6 +34,8 @@ export interface ClaimData {
   slotNumber: number;
   txHash: string | null;
   claimedAt: string;
+  platform?: "twitter" | "farcaster";
+  avatar?: string | null;
 }
 
 export interface EligibilityCheck {
@@ -62,6 +64,8 @@ export interface CampaignStatusResponse {
     slotNumber: number;
     amount: string;
     time: string;
+    platform: "twitter" | "farcaster";
+    avatar: string | null;
   }[];
 }
 

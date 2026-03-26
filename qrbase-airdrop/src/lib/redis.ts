@@ -48,3 +48,22 @@ export async function cacheSet(
   if (!client) return;
   await client.set(key, value, { ex: ttlSeconds });
 }
+
+// Persistent settings (no TTL)
+export async function settingGet(key: string): Promise<string | null> {
+  const client = getRedis();
+  if (!client) return null;
+  return client.get<string>(key);
+}
+
+export async function settingSet(key: string, value: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  await client.set(key, value);
+}
+
+export async function settingDelete(key: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  await client.del(key);
+}

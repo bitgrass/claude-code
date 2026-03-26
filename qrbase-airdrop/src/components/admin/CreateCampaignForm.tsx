@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useAccount, useWalletClient } from "wagmi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { EligibilityRule, RewardTier } from "@/types";
@@ -22,9 +22,8 @@ export function CreateCampaignForm({
 }: {
   onCreated: () => void;
 }) {
-  const { getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
-  const wallet = wallets[0];
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -103,7 +102,7 @@ export function CreateCampaignForm({
   };
 
   const handleSubmit = async () => {
-    if (!wallet) return;
+    if (!walletClient || !address) return;
     setLoading(true);
     setError(null);
 
@@ -127,7 +126,6 @@ export function CreateCampaignForm({
       }
 
       // Step 1: Create on-chain via user's wallet
-      const provider = await wallet.getEthereumProvider();
       const { encodeFunctionData } = await import("viem");
       const { QRBASE_AIRDROP_ABI, ERC20_ABI } = await import(
         "@/lib/contract"
@@ -146,12 +144,12 @@ export function CreateCampaignForm({
         args: [contractAddress as `0x${string}`, BigInt(totalUsdcRaw)],
       });
 
-      await provider.request({
+      await walletClient.request({
         method: "eth_sendTransaction",
         params: [
           {
-            from: wallet.address,
-            to: usdcAddress,
+            from: address,
+            to: usdcAddress as `0x${string}`,
             data: approveData,
           },
         ],
@@ -168,12 +166,12 @@ export function CreateCampaignForm({
         ],
       });
 
-      const createTxHash = await provider.request({
+      const createTxHash = await walletClient.request({
         method: "eth_sendTransaction",
         params: [
           {
-            from: wallet.address,
-            to: contractAddress,
+            from: address,
+            to: contractAddress as `0x${string}`,
             data: createData,
           },
         ],
@@ -187,13 +185,9 @@ export function CreateCampaignForm({
       const onChainId = logs[0].args.campaignId.toString();
 
       // Step 2: Create DB record via API
-      const token = await getAccessToken();
       const res = await fetch("/api/admin/campaigns", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
           tokenSymbol: form.tokenSymbol,
@@ -203,7 +197,7 @@ export function CreateCampaignForm({
           tiers,
           eligibilityRules: form.rules,
           onChainId,
-          creatorWallet: wallet.address,
+          creatorWallet: address,
         }),
       });
 
@@ -369,6 +363,7 @@ export function CreateCampaignForm({
             Eligibility Rules
           </label>
           <button
+            type="button"
             onClick={addRule}
             className="text-xs text-primary hover:underline"
           >
@@ -378,10 +373,10 @@ export function CreateCampaignForm({
         {form.rules.map((rule, i) => (
           <div
             key={i}
-            className="flex items-center gap-2 bg-surface-muted p-3 rounded-xl"
+            className="grid grid-cols-[minmax(0,1fr)_56px_auto_72px_auto] items-center gap-2 rounded-xl bg-surface-muted p-3"
           >
             <select
-              className="px-2 py-1 border border-border rounded-lg text-sm bg-white"
+              className="min-w-0 rounded-lg border border-border bg-white px-2 py-1 text-sm"
               value={rule.type}
               onChange={(e) =>
                 updateRule(
@@ -396,14 +391,14 @@ export function CreateCampaignForm({
             </select>
             <input
               type="text"
-              className="w-16 px-2 py-1 border border-border rounded-lg text-sm"
+              className="w-full rounded-lg border border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-center"
               value={rule.token}
               onChange={(e) => updateRule(i, "token", e.target.value)}
             />
-            <span className="text-xs text-muted">&ge;</span>
+            <span className="text-center text-xs text-muted">&ge;</span>
             <input
               type="number"
-              className="w-24 px-2 py-1 border border-border rounded-lg text-sm"
+              className="w-full rounded-lg border border-border px-2 py-1 text-xs font-mono"
               value={rule.min}
               onChange={(e) =>
                 updateRule(i, "min", parseInt(e.target.value) || 0)
@@ -411,10 +406,24 @@ export function CreateCampaignForm({
             />
             {form.rules.length > 1 && (
               <button
+                type="button"
                 onClick={() => removeRule(i)}
-                className="text-error text-xs hover:underline"
+                aria-label="Delete rule"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-error transition hover:bg-red-50"
               >
-                Remove
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7 7h10M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-7 3v7m4-7v7M8 20h8a1 1 0 001-1V7H7v12a1 1 0 001 1z"
+                  />
+                </svg>
               </button>
             )}
           </div>
@@ -458,7 +467,7 @@ export function CreateCampaignForm({
         className="w-full"
         loading={loading}
         onClick={handleSubmit}
-        disabled={!form.name || !form.totalUsdc || !form.tokenAddress}
+        disabled={!form.name || !form.totalUsdc || !form.tokenAddress || !walletClient}
       >
         Create Campaign
       </Button>
