@@ -13,8 +13,10 @@ type ClaimIdentitySource = Pick<
 
 const EMPTY_HANDLES = new Set(["", "unknown", "null", "undefined", "n/a"]);
 
-function isNumericId(value: string): boolean {
-  return /^\d+$/.test(value);
+// Farcaster FIDs are small integers (< 1B). Twitter IDs are snowflake IDs (10^15+).
+// Platform is determined by FID range, not by Neynar resolution success.
+function isFarcasterFid(value: string): boolean {
+  return /^\d+$/.test(value) && BigInt(value) < BigInt(1_000_000_000);
 }
 
 
@@ -33,15 +35,16 @@ export function resolveClaimIdentity(
   farcasterUsers: Record<number, FarcasterUser>
 ) {
   const storedHandle = normalizeClaimHandle(claim.twitterHandle);
-  // farcasterUsers only contains real Farcaster FIDs (< 1B) — Twitter IDs are filtered
-  // out upstream in neynar.ts, so this lookup will always be empty for Twitter claimants.
-  const fid = isNumericId(claim.twitterId) ? Number(claim.twitterId) : null;
+  // Platform is determined solely by FID range — Neynar only enriches display data
+  // (username, avatar). This prevents timing-dependent flicker where a slow/empty
+  // Neynar response would incorrectly show a Farcaster claimant as an X user.
+  const isFarcaster = isFarcasterFid(claim.twitterId);
+  const fid = isFarcaster ? Number(claim.twitterId) : null;
   const farcasterUser = fid !== null ? farcasterUsers[fid] : undefined;
-  const isFarcaster = Boolean(farcasterUser);
 
   const handle = isFarcaster
-    ? farcasterUser!.username
-    : storedHandle || claim.twitterId.slice(-6);
+    ? (farcasterUser?.username || storedHandle || claim.twitterId)
+    : (storedHandle || claim.twitterId.slice(-6));
 
   return {
     handle,
@@ -51,13 +54,10 @@ export function resolveClaimIdentity(
     platform: (isFarcaster ? "farcaster" : "twitter") as
       | "twitter"
       | "farcaster",
-    avatar:
-      isFarcaster && farcasterUser
-        ? farcasterUser.pfp
-        : storedHandle
-          ? `https://unavatar.io/twitter/${encodeURIComponent(
-              storedHandle
-            )}?fallback=false`
-          : null,
+    avatar: isFarcaster
+      ? (farcasterUser?.pfp ?? null)
+      : storedHandle
+        ? `https://unavatar.io/twitter/${encodeURIComponent(storedHandle)}?fallback=false`
+        : null,
   };
 }

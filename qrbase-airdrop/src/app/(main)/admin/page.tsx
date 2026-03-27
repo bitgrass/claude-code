@@ -31,12 +31,10 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-md">
-        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm font-mono">QR</span>
-              </div>
+              <img src="/logo.svg" alt="QRbase" className="h-8 w-auto" />
               <span className="font-bold text-base text-gray-900">
                 QRbase <span className="text-primary">Admin</span>
               </span>
@@ -85,7 +83,7 @@ export default function AdminPage() {
         </div>
       ) : (
         /* Dashboard layout */
-        <div className="max-w-screen-xl mx-auto px-6 py-8">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
           <div className="mb-7">
             <h1 className="text-2xl font-bold text-gray-900">Campaign Dashboard</h1>
             <p className="text-sm text-muted mt-1">Create and manage your QRbase airdrop campaigns.</p>

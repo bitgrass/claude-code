@@ -196,13 +196,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-md">
-        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm font-mono">QR</span>
-            </div>
-            <span className="font-bold text-base text-gray-900">
-              QRbase <span className="text-primary">Airdrop</span>
+            <img src="/logo.svg" alt="QRbase" className="h-8 w-auto" />
+            <span className="inline-flex items-center bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              Airdrop
             </span>
           </div>
           <nav className="flex items-center gap-1">
@@ -214,7 +212,7 @@ export default function HomePage() {
       </header>
 
       {/* Hero + Featured Campaign — 2-col layout */}
-      <main className="max-w-screen-xl mx-auto px-6 py-16">
+      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
         <div className="mb-20 flex flex-col items-center gap-10">
           {/* Left: hero copy */}
           <motion.div
@@ -314,11 +312,9 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-border bg-white mt-0">
-        <div className="max-w-screen-xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-white font-bold text-xs font-mono">QR</span>
-            </div>
+            <img src="/logo.svg" alt="QRbase" className="h-5 w-auto opacity-80" />
             <span className="font-mono text-xs text-muted">QRbase Airdrop</span>
           </div>
           <div className="flex items-center gap-6 text-xs font-mono text-muted">

@@ -54,9 +54,7 @@ export default function AdminLoginPage() {
         <div className="bg-white border border-border rounded-2xl p-8 shadow-sm">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center mb-4">
-              <span className="text-white font-bold text-base font-mono">QR</span>
-            </div>
+            <img src="/logo.svg" alt="QRbase" className="h-11 w-auto mb-4" />
             <h1 className="text-lg font-bold text-gray-900">
               QRbase <span className="text-primary">Admin</span>
             </h1>

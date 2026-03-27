@@ -145,7 +145,7 @@ export default function QuickCreatePage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-md">
-        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-gray-900 transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,9 +155,7 @@ export default function QuickCreatePage() {
             </Link>
             <span className="text-border">|</span>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-                <span className="text-white font-bold text-xs font-mono">QR</span>
-              </div>
+              <img src="/logo.svg" alt="QRbase" className="h-6 w-auto" />
               <span className="font-bold text-sm text-gray-900">
                 QRbase <span className="text-primary">Quick Create</span>
               </span>
@@ -169,7 +167,7 @@ export default function QuickCreatePage() {
         </div>
       </header>
 
-      <main className="max-w-screen-xl mx-auto px-6 py-10 space-y-12">
+      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-10 space-y-12">
         {/* ── Create ── */}
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">

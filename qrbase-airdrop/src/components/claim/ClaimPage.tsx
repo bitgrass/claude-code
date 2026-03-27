@@ -76,7 +76,7 @@ export function ClaimPage({
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-md">
-        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => { window.location.href = backUrl; }}
@@ -89,10 +89,10 @@ export function ClaimPage({
             </button>
             <span className="text-border">|</span>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-                <span className="text-white font-bold text-xs font-mono">QR</span>
-              </div>
-              <span className="font-bold text-sm text-gray-900 hidden sm:block">QRbase <span className="text-primary">Airdrop</span></span>
+              <img src="/logo.svg" alt="QRbase" className="h-6 w-auto" />
+              <span className="hidden sm:inline-flex items-center bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                Airdrop
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export function ClaimPage({
       </header>
 
       {/* Body — 2 column on wide screens */}
-      <main className="max-w-screen-xl mx-auto px-6 py-8">
+      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_440px] gap-6 items-start">
 
           {/* Left column — Campaign info */}

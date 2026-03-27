@@ -55,7 +55,7 @@ export default function ClaimLandingPage({
         </p>
       </div>
 
-      <main className="max-w-screen-xl mx-auto px-6 py-8">
+      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6 items-start">
           <div className="space-y-5">
             {campaign ? (
