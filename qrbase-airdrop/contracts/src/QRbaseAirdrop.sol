@@ -155,6 +155,46 @@ contract QRbaseAirdrop is ReentrancyGuard, Ownable {
         }
     }
 
+    function distributeReward(
+        uint256 campaignId,
+        address recipient,
+        string calldata userId,
+        bytes calldata signature
+    ) external nonReentrant {
+        Campaign storage campaign = campaigns[campaignId];
+
+        require(campaign.isActive, "Campaign is not active");
+        require(!hasClaimed[campaignId][recipient], "Already claimed (wallet)");
+        require(!twitterClaimed[campaignId][userId], "Already claimed (userId)");
+        require(campaign.claimedCount < campaign.maxRecipients, "All rewards claimed");
+
+        uint256 slotNumber = campaign.claimedCount;
+        uint256 claimAmount = getRewardForSlot(campaignId, slotNumber);
+
+        // Verify signature: (campaignId, recipient, userId, amount) — same format as claimReward
+        bytes32 messageHash = keccak256(
+            abi.encodePacked(campaignId, recipient, userId, claimAmount)
+        );
+        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
+        address recoveredSigner = ethSignedHash.recover(signature);
+        require(recoveredSigner == signer, "Invalid signature");
+
+        require(claimAmount <= campaign.remainingAmount, "Insufficient remaining");
+
+        hasClaimed[campaignId][recipient] = true;
+        twitterClaimed[campaignId][userId] = true;
+        campaign.claimedCount++;
+        campaign.remainingAmount -= claimAmount;
+
+        IERC20(USDC).safeTransfer(recipient, claimAmount);
+
+        emit RewardClaimed(campaignId, recipient, userId, claimAmount, slotNumber + 1);
+
+        if (campaign.claimedCount == campaign.maxRecipients) {
+            campaign.isActive = false;
+        }
+    }
+
     function closeCampaign(uint256 campaignId) external nonReentrant {
         Campaign storage campaign = campaigns[campaignId];
 

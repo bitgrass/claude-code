@@ -31,8 +31,11 @@ export async function GET(req: NextRequest) {
     }) as (Campaign & { claims: Claim[]; _count: { claims: number } })[];
 
     const allClaims = campaigns.flatMap((c) => c.claims);
+    // Only resolve Farcaster FIDs — Twitter IDs are 17-19 digits (> 1 billion), skip them
     const numericIds = [...new Set(
-      allClaims.map((cl) => cl.twitterId).filter((id) => /^\d+$/.test(id)).map(Number)
+      allClaims.map((cl) => cl.twitterId)
+        .filter((id) => /^\d+$/.test(id) && BigInt(id) < BigInt(1_000_000_000))
+        .map(Number)
     )];
     const farcasterUsers = await getFarcasterUsers(numericIds);
 

@@ -43,15 +43,9 @@ export function ClaimPage({
     txHash,
     claimedAmount,
     login,
-    connectWallet,
-    checkEligibility,
     submitClaim,
-    walletAddress,
-    walletConnected,
+    recipientWallet,
   } = useClaimFlow(campaign, platform);
-
-  // Suppress unused variable warning
-  void checkEligibility;
 
   // Refresh slot counter immediately after a successful claim
   useEffect(() => {
@@ -289,61 +283,23 @@ export function ClaimPage({
                     </div>
                   )}
 
-                  {state === "ELIGIBLE_NEED_WALLET" && eligibility && (
-                    <div className="space-y-5">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-5 h-5 bg-green-50 rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4" />
-                            </svg>
-                          </div>
-                          <h2 className="text-lg font-bold text-gray-900">You&apos;re eligible!</h2>
-                        </div>
-                        <p className="text-sm text-muted">Connect a wallet to receive your USDC reward.</p>
-                      </div>
-                      <EligibilityChecks checks={eligibility.checks} />
-                      <div className="bg-surface-muted border border-border rounded-xl px-4 py-3 text-xs text-muted">
-                        This wallet is for claiming only - separate from your {platformLabel} identity.
-                      </div>
-                      {walletConnected && walletAddress ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between bg-surface-muted border border-border rounded-xl px-4 py-2.5 text-sm">
-                            <span className="text-muted text-xs">Connected wallet</span>
-                            <span className="font-mono text-gray-700 text-xs">
-                              {walletAddress.slice(0, 6)}&hellip;{walletAddress.slice(-4)}
-                            </span>
-                          </div>
-                          <Button size="lg" className="w-full rounded-xl" onClick={connectWallet}>
-                            Change Wallet
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button size="lg" className="w-full rounded-xl" onClick={connectWallet}>
-                          Connect Wallet
-                        </Button>
-                      )}
-                    </div>
-                  )}
 
                   {state === "ELIGIBLE_READY_TO_CLAIM" && eligibility && (
                     <div className="space-y-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-5 h-5 bg-green-50 rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4" />
-                            </svg>
-                          </div>
-                          <h2 className="text-lg font-bold text-gray-900">You&apos;re eligible!</h2>
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 bg-green-50 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4" />
+                          </svg>
                         </div>
+                        <h2 className="text-lg font-bold text-gray-900">You&apos;re eligible!</h2>
                       </div>
                       <EligibilityChecks checks={eligibility.checks} />
-                      {walletAddress && (
+                      {recipientWallet && (
                         <div className="flex items-center justify-between bg-surface-muted border border-border rounded-xl px-4 py-2.5 text-sm">
-                          <span className="text-muted text-xs">Claiming to</span>
+                          <span className="text-muted text-xs">Reward sent to</span>
                           <span className="font-mono text-gray-700 text-xs">
-                            {walletAddress.slice(0, 6)}&hellip;{walletAddress.slice(-4)}
+                            {recipientWallet.slice(0, 6)}&hellip;{recipientWallet.slice(-4)}
                           </span>
                         </div>
                       )}
@@ -360,8 +316,8 @@ export function ClaimPage({
                     <div className="text-center space-y-4 py-6">
                       <div className="animate-spin h-8 w-8 border-[3px] border-primary border-t-transparent rounded-full mx-auto" />
                       <div>
-                        <p className="text-gray-700 font-semibold text-sm">Sending USDC to your wallet...</p>
-                        <p className="text-xs text-muted mt-1">Please confirm in your wallet</p>
+                        <p className="text-gray-700 font-semibold text-sm">Processing your reward...</p>
+                        <p className="text-xs text-muted mt-1">USDC is being sent on-chain, this may take a few seconds</p>
                       </div>
                     </div>
                   )}

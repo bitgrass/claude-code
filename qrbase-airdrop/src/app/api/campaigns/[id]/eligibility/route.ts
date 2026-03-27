@@ -97,7 +97,7 @@ export async function POST(
     }
 
     // Check cached result
-    const cacheKey = `eligibility:${params.id}:${twitterHandle}:${balanceWallet}`;
+    const cacheKey = `eligibility:${params.id}:${twitterId}:${balanceWallet}`;
     const cached = await cacheGet<{
       eligible: boolean;
       checks: unknown[];
@@ -109,9 +109,11 @@ export async function POST(
     } else {
       // Evaluate rules — use Privy wallet for token balance check
       const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
+      // For Farcaster, QRbase API expects FID (e.g. fc:1005896), not username
+      const gameStatusHandle = platform === "farcaster" ? twitterId : twitterHandle;
       eligibilityResult = await evaluateEligibility(
         rules,
-        twitterHandle,
+        gameStatusHandle,
         balanceWallet,
         platform
       );
@@ -141,6 +143,7 @@ export async function POST(
       eligible: true,
       checks: eligibilityResult.checks,
       claimAmount: claimAmount.toString(),
+      resolvedRecipient: balanceWallet || undefined,
     });
   } catch (error) {
     console.error("Eligibility check error:", error);

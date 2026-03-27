@@ -38,9 +38,10 @@ export async function GET(
     }
   }
 
+  // Only resolve Farcaster FIDs — Twitter IDs are 17-19 digits (> 1 billion), skip them
   const numericIds = recentClaims
     .map((cl) => cl.twitterId)
-    .filter((id) => /^\d+$/.test(id))
+    .filter((id) => /^\d+$/.test(id) && BigInt(id) < BigInt(1_000_000_000))
     .map(Number);
   const farcasterUsers = await getFarcasterUsers([...new Set(numericIds)]);
 

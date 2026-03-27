@@ -52,6 +52,7 @@ export interface EligibilityResponse {
   reason?: string;
   signedAuth?: string;
   claimAmount?: string;
+  resolvedRecipient?: string;
 }
 
 export interface CampaignStatusResponse {

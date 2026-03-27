@@ -123,7 +123,7 @@ export default function ClaimLandingPage({
               <div className="text-center">
                 <h2 className="text-base font-bold text-gray-900 mb-1">How do you want to claim?</h2>
                 <p className="text-xs text-muted">
-                  Sign in to verify eligibility. Then connect any wallet to receive your reward.
+                  Sign in to verify eligibility. Reward is sent directly to your linked wallet.
                 </p>
               </div>
 
@@ -158,7 +158,7 @@ export default function ClaimLandingPage({
                 {[
                   "Sign in with X or Farcaster",
                   "Eligibility verified automatically",
-                  "Connect any Base wallet for claiming",
+                  "One click — reward sent to your linked wallet",
                   "Receive USDC on Base",
                 ].map((step, i) => (
                   <li key={i} className="flex items-center gap-2.5 text-xs text-gray-700">

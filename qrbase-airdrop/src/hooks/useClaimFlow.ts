@@ -2,40 +2,40 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { usePrivy, useLoginWithOAuth, useWallets } from "@privy-io/react-auth";
-import { useAccount, useWriteContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
-import type {
-  ClaimPageState,
-  EligibilityResponse,
-  CampaignData,
-} from "@/types";
+import type { ClaimPageState, EligibilityResponse, CampaignData } from "@/types";
 
 export function useClaimFlow(
   campaign: CampaignData | null,
   platform: "twitter" | "farcaster"
 ) {
-  // Privy: identity only (Twitter or Farcaster login for eligibility check)
   const { authenticated, user, login: privyLogin } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
   const { wallets: privyWallets } = useWallets();
 
-  // Privy wallet used for eligibility/balance checks (NOT for claiming)
-  // Farcaster: Warpcast verified address (primary) → custody address → first Privy wallet
-  // Twitter: first Privy-linked wallet if any
+  // Privy wallet — used for eligibility balance check AND as reward recipient
+  // Farcaster: verified ETH address → custody address → embedded wallet
+  // Twitter: linked external wallet → embedded wallet
   const farcasterVerifiedAddress =
     (user?.farcaster as unknown as { verifiedAddresses?: { eth_addresses?: string[] } })
       ?.verifiedAddresses?.eth_addresses?.[0];
-  const privyWalletAddress =
+
+  // Twitter: user.wallet is Privy's direct primary wallet accessor (most reliable)
+  // Falls back to linkedAccounts wallet search, then privyWallets (connected session)
+  const twitterWallet =
+    (user?.wallet as { address?: string } | undefined)?.address ||
+    (user?.linkedAccounts?.find(
+      (a) => a.type === "wallet" && "address" in a
+    ) as { address: string } | undefined)?.address ||
+    privyWallets[0]?.address ||
+    "";
+
+  const recipientWallet =
     platform === "farcaster"
-      ? (farcasterVerifiedAddress || (user?.farcaster as unknown as { ownerAddress?: string })?.ownerAddress || privyWallets[0]?.address || "")
-      : (privyWallets[0]?.address || "");
+      ? (farcasterVerifiedAddress ||
+          (user?.farcaster as unknown as { ownerAddress?: string })?.ownerAddress ||
+          privyWallets[0]?.address || "")
+      : twitterWallet;
 
-  // Wagmi + RainbowKit: independent wallet for claiming (never linked to Privy)
-  const { address: walletAddress, isConnected: walletConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
-  const { writeContractAsync } = useWriteContract();
-
-  // Redirect-based OAuth for Twitter (works on mobile); Farcaster uses QR/deeplink
   const login = useCallback(() => {
     if (platform === "twitter") {
       initOAuth({ provider: "twitter" });
@@ -44,41 +44,28 @@ export function useClaimFlow(
     }
   }, [platform, initOAuth, privyLogin]);
 
-  // Opens RainbowKit wallet picker — user chooses any wallet, independent of Privy
-  const connectWallet = useCallback(() => {
-    openConnectModal?.();
-  }, [openConnectModal]);
-
   const [state, setState] = useState<ClaimPageState>("LOADING");
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
-  const [eligibilityVerified, setEligibilityVerified] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [claimedAmount, setClaimedAmount] = useState<string | null>(null);
+  // Resolved recipient: for Farcaster this comes from Neynar (primary verified address)
+  const [resolvedRecipient, setResolvedRecipient] = useState<string | null>(null);
 
-  // userId is the unique identifier sent to the contract and stored in DB
   const userId =
     platform === "farcaster"
-      ? user?.farcaster?.fid ? String(user.farcaster.fid) : ""
-      : user?.twitter?.subject || "";
+      ? (user?.farcaster?.fid ? String(user.farcaster.fid) : "")
+      : (user?.twitter?.subject || "");
 
-  // userHandle: Farcaster username preferred, fall back to FID if username unavailable
   const userHandle =
     platform === "farcaster"
-      ? ((user?.farcaster as unknown as { username?: string })?.username || (user?.farcaster?.fid ? String(user.farcaster.fid) : ""))
-      : user?.twitter?.username || "";
+      ? ((user?.farcaster as unknown as { username?: string })?.username ||
+          (user?.farcaster?.fid ? String(user.farcaster.fid) : ""))
+      : (user?.twitter?.username || "");
 
   const isLoggedIn = authenticated;
 
-  // Eligibility is checked ONCE after Privy login, using the Privy wallet for balance checks.
-  // No re-check when the claiming wallet connects — signature is fetched at claim time.
   const checkEligibility = useCallback(async () => {
-    if (!campaign || !isLoggedIn) return;
-
-    if (!userId) {
-      setState("INELIGIBLE");
-      setEligibility({ eligible: false, checks: [], reason: "Account not linked to your session." });
-      return;
-    }
+    if (!campaign || !isLoggedIn || !userId) return;
 
     setState("CHECKING_ELIGIBILITY");
 
@@ -87,8 +74,8 @@ export function useClaimFlow(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eligibilityWallet: privyWalletAddress, // Privy wallet — for balance check
-          walletAddress: "",                      // No claim wallet at this stage
+          eligibilityWallet: recipientWallet,
+          walletAddress: recipientWallet,
           twitterId: userId,
           twitterHandle: userHandle,
           platform,
@@ -108,15 +95,15 @@ export function useClaimFlow(
         checks: data.checks ?? [],
         reason: data.reason,
         claimAmount: data.claimAmount,
+        resolvedRecipient: data.resolvedRecipient,
       };
       setEligibility(eligibilityData);
+      if (data.resolvedRecipient) setResolvedRecipient(data.resolvedRecipient);
 
       if (eligibilityData.reason === "already_claimed") {
         setState("ALREADY_CLAIMED");
       } else if (eligibilityData.eligible) {
-        setEligibilityVerified(true);
-        // If claiming wallet already connected, go straight to ready; else prompt connect
-        setState(walletAddress ? "ELIGIBLE_READY_TO_CLAIM" : "ELIGIBLE_NEED_WALLET");
+        setState("ELIGIBLE_READY_TO_CLAIM");
       } else {
         setState("INELIGIBLE");
       }
@@ -124,84 +111,62 @@ export function useClaimFlow(
       setState("INELIGIBLE");
       setEligibility({ eligible: false, checks: [], reason: "Failed to check eligibility. Please try again." });
     }
-  }, [campaign, isLoggedIn, walletAddress, userId, userHandle, platform, privyWalletAddress]);
+  }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, platform]);
 
-  // Auto-check eligibility once authenticated (single check, no re-check on wallet connect)
   useEffect(() => {
     if (campaign && authenticated) {
       checkEligibility();
     }
   }, [authenticated, campaign]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When RainbowKit wallet connects and eligibility already verified → move to ready to claim
-  useEffect(() => {
-    if (walletAddress && eligibilityVerified) {
-      setState("ELIGIBLE_READY_TO_CLAIM");
-    }
-  }, [walletAddress, eligibilityVerified]);
-
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
     if (!campaign.isActive) {
-      return campaign.claimedCount >= campaign.maxRecipients
-        ? "CAMPAIGN_FULL"
-        : "CAMPAIGN_CLOSED";
+      return campaign.claimedCount >= campaign.maxRecipients ? "CAMPAIGN_FULL" : "CAMPAIGN_CLOSED";
     }
     if (!isLoggedIn) return "NOT_LOGGED_IN";
     return state;
   }, [campaign, isLoggedIn, state]);
 
   const submitClaim = useCallback(async () => {
-    if (!campaign || !walletAddress || !eligibilityVerified) return;
+    if (!campaign || !userId || !recipientWallet) return;
+
+    if (!recipientWallet) {
+      setEligibility({ eligible: false, checks: [], reason: "No wallet linked to your account. Please link a wallet in your Privy account settings." });
+      setState("INELIGIBLE");
+      return;
+    }
 
     setState("CLAIMING");
 
     try {
-      // Fetch signature at claim time — bound to the chosen claiming wallet
-      const signRes = await fetch(`/api/campaigns/${campaign.id}/sign`, {
+      const res = await fetch(`/api/campaigns/${campaign.id}/server-claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress, twitterId: userId }),
+        body: JSON.stringify({
+          twitterId: userId,
+          twitterHandle: userHandle,
+          recipientWallet,
+          platform,
+        }),
       });
 
-      const signData = await signRes.json() as { signedAuth?: string; claimAmount?: string; error?: string };
+      const data = await res.json() as { txHash?: string; claimAmount?: string; error?: string };
 
-      if (!signRes.ok || !signData.signedAuth) {
-        console.error("Sign failed:", signData.error);
+      if (!res.ok) {
+        console.error("Claim failed:", data.error);
         setState("ELIGIBLE_READY_TO_CLAIM");
         return;
       }
 
-      const { QRBASE_AIRDROP_ABI } = await import("@/lib/contract");
-      const contractAddress = (process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "") as `0x${string}`;
-
-      const hash = await writeContractAsync({
-        address: contractAddress,
-        abi: QRBASE_AIRDROP_ABI,
-        functionName: "claimReward",
-        args: [BigInt(campaign.onChainId), userId, signData.signedAuth as `0x${string}`],
-      });
-
-      setTxHash(hash as string);
-      setClaimedAmount(signData.claimAmount || eligibility?.claimAmount || "0");
-
-      await fetch(`/api/campaigns/${campaign.id}/claim`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          walletAddress,
-          txHash: hash,
-          twitterId: userId,
-          twitterHandle: userHandle,
-        }),
-      });
-
+      setTxHash(data.txHash || null);
+      setClaimedAmount(data.claimAmount || eligibility?.claimAmount || "0");
       setState("CLAIMED_SUCCESS");
     } catch (err) {
-      console.error("Claim failed:", err);
+      console.error("Claim error:", err);
       setState("ELIGIBLE_READY_TO_CLAIM");
     }
-  }, [campaign, walletAddress, eligibilityVerified, eligibility, userId, userHandle, writeContractAsync]);
+  }, [campaign, userId, userHandle, recipientWallet, platform, eligibility]);
 
   return {
     state: determineState(),
@@ -209,11 +174,9 @@ export function useClaimFlow(
     txHash,
     claimedAmount,
     login,
-    connectWallet,
     checkEligibility,
     submitClaim,
-    walletAddress,
-    walletConnected,
+    recipientWallet: resolvedRecipient || recipientWallet,
     twitterHandle: userHandle || null,
     twitterAvatar: platform === "twitter"
       ? (user?.twitter?.profilePictureUrl || null)

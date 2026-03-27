@@ -9,7 +9,7 @@ export async function getFarcasterUsers(
   fids: number[]
 ): Promise<Record<number, FarcasterUser>> {
   const uniqueFids = [...new Set(fids)].filter(
-    (fid) => Number.isInteger(fid) && fid > 0
+    (fid) => Number.isInteger(fid) && fid > 0 && fid < 1_000_000_000
   );
   if (uniqueFids.length === 0) return {};
 

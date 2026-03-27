@@ -17,6 +17,7 @@ function isNumericId(value: string): boolean {
   return /^\d+$/.test(value);
 }
 
+
 export function normalizeClaimHandle(handle: string | null | undefined): string {
   const normalized = (handle ?? "").trim().replace(/^@+/, "");
   return EMPTY_HANDLES.has(normalized.toLowerCase()) ? "" : normalized;
@@ -32,10 +33,10 @@ export function resolveClaimIdentity(
   farcasterUsers: Record<number, FarcasterUser>
 ) {
   const storedHandle = normalizeClaimHandle(claim.twitterHandle);
+  // farcasterUsers only contains real Farcaster FIDs (< 1B) — Twitter IDs are filtered
+  // out upstream in neynar.ts, so this lookup will always be empty for Twitter claimants.
   const fid = isNumericId(claim.twitterId) ? Number(claim.twitterId) : null;
   const farcasterUser = fid !== null ? farcasterUsers[fid] : undefined;
-  // Strict rule: if Neynar resolves this numeric id to a Farcaster user,
-  // always display Farcaster identity.
   const isFarcaster = Boolean(farcasterUser);
 
   const handle = isFarcaster

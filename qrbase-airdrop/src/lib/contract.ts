@@ -1,4 +1,5 @@
-import { createPublicClient, http, type Address } from "viem";
+import { createPublicClient, createWalletClient, http, type Address, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
 const chain = process.env.NEXT_PUBLIC_CHAIN_ID === "8453" ? base : baseSepolia;
@@ -7,6 +8,16 @@ export const publicClient = createPublicClient({
   chain,
   transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL),
 });
+
+export function getRelayerWalletClient() {
+  const pk = process.env.RELAYER_PRIVATE_KEY as Hex;
+  if (!pk) throw new Error("RELAYER_PRIVATE_KEY not configured");
+  return createWalletClient({
+    account: privateKeyToAccount(pk),
+    chain,
+    transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL),
+  });
+}
 
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "") as Address;
 export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") as Address;
@@ -31,6 +42,18 @@ export const QRBASE_AIRDROP_ABI = [
       { name: "signature", type: "bytes" },
     ],
     name: "claimReward",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "campaignId", type: "uint256" },
+      { name: "recipient", type: "address" },
+      { name: "userId", type: "string" },
+      { name: "signature", type: "bytes" },
+    ],
+    name: "distributeReward",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
