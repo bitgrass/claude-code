@@ -36,7 +36,7 @@ export function RecentClaimantsList({
             handle={claim.handle}
             platform={claim.platform}
             size={dense ? 34 : 40}
-            badgeSize={dense ? 16 : 18}
+            badgeSize={dense ? 20 : 22}
           />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-muted">

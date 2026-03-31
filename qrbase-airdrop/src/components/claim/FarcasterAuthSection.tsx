@@ -29,7 +29,8 @@ function FarcasterLoginInner({
   if (authenticated) return null;
 
   return (
-    <Button size="lg" className="w-full bg-purple-600 hover:bg-purple-700" onClick={login}>
+    <Button size="lg" className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700" onClick={login}>
+      <img src="/farcasterIcon.svg" alt="Farcaster" className="w-4 h-4" />
       Sign in with Farcaster
     </Button>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { usePrivy, useLoginWithOAuth, useWallets } from "@privy-io/react-auth";
 import type { ClaimPageState, EligibilityResponse, CampaignData } from "@/types";
 
@@ -50,6 +50,9 @@ export function useClaimFlow(
   const [claimedAmount, setClaimedAmount] = useState<string | null>(null);
   // Resolved recipient: for Farcaster this comes from Neynar (primary verified address)
   const [resolvedRecipient, setResolvedRecipient] = useState<string | null>(null);
+  // Tracks whether eligibility has been checked this session — prevents double-firing
+  // when Privy wallet hydrates after authenticated=true on reload
+  const eligibilityCheckedRef = useRef(false);
 
   const userId =
     platform === "farcaster"
@@ -114,10 +117,18 @@ export function useClaimFlow(
   }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, platform]);
 
   useEffect(() => {
-    if (campaign && authenticated) {
-      checkEligibility();
+    if (!campaign || !authenticated) {
+      eligibilityCheckedRef.current = false;
+      return;
     }
-  }, [authenticated, campaign]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Wait for wallet to resolve before checking — on reload, Privy restores
+    // authenticated=true immediately but privyWallets hydrates a tick later,
+    // causing a false "0 balance" check with an empty wallet address.
+    if (!recipientWallet) return;
+    if (eligibilityCheckedRef.current) return;
+    eligibilityCheckedRef.current = true;
+    checkEligibility();
+  }, [authenticated, campaign, recipientWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
