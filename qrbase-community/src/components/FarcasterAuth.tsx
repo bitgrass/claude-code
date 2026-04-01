@@ -8,22 +8,35 @@ const FARCASTER_APP_ID =
   process.env.NEXT_PUBLIC_FARCASTER_PRIVY_APP_ID || "cmeifjj1400sakv0b2dn2fjz7";
 
 function FarcasterLoginInner({ onClose }: { onClose: () => void }) {
-  const { authenticated, user, login, logout } = usePrivy();
+  const { authenticated, user, login } = usePrivy();
   const { setIdentity, identity } = useAuth();
 
   useEffect(() => {
     if (authenticated && user?.farcaster?.fid) {
+      // Detect wallet: prefer verified ETH addresses, fall back to custody address
+      const fc = user.farcaster as any;
+      const walletAddress =
+        fc?.verifiedAddresses?.eth_addresses?.[0] ||
+        fc?.ownerAddress ||
+        (user as any)?.wallet?.address ||
+        null;
+
       setIdentity({
         handle: user.farcaster.username || String(user.farcaster.fid),
         platform: "farcaster",
         displayName: user.farcaster.displayName || user.farcaster.username || "",
         profilePhoto: user.farcaster.pfp || null,
+        walletAddress,
       });
+
+      // Clear Privy Farcaster cookies so Twitter provider doesn't conflict on next load
+      document.cookie = "privy-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "privy-refresh-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
       onClose();
     }
   }, [authenticated, user, setIdentity, onClose]);
 
-  // If twitter is already connected via main privy, show farcaster option anyway
   if (authenticated && identity?.platform === "farcaster") return null;
 
   return (

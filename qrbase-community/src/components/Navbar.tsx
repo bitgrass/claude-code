@@ -28,15 +28,26 @@ export function Navbar() {
   const { authenticated, user, login, logout } = usePrivy();
   const { identity, setIdentity, disconnect } = useAuth();
   const [showAuthMenu, setShowAuthMenu] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Sync Twitter Privy state → shared AuthContext
+  useEffect(() => { setMounted(true); }, []);
+
   useEffect(() => {
     if (authenticated && user?.twitter?.username) {
+      // Detect wallet linked via Privy (embedded or connected)
+      const walletAddress =
+        (user as any)?.wallet?.address ||
+        (user as any)?.linkedAccounts?.find(
+          (a: { type: string }) => a.type === "wallet"
+        )?.address ||
+        null;
+
       setIdentity({
         handle: user.twitter.username,
         platform: "twitter",
         displayName: user.twitter.name || user.twitter.username,
         profilePhoto: user.twitter.profilePictureUrl || null,
+        walletAddress,
       });
     }
   }, [authenticated, user, setIdentity]);
@@ -48,26 +59,27 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-white/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 border-b-2 border-border bg-white/90 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
+
+        {/* Logo — fun, not corporate */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-sm">Q</span>
+          <div className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center shadow-md rotate-3 hover:rotate-0 transition-transform">
+            <span className="text-white text-lg">🤖</span>
           </div>
-          <span className="font-bold text-lg text-gray-900">QRbase</span>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-            Community
-          </span>
+          <div className="flex flex-col leading-none">
+            <span className="font-extrabold text-gray-900 text-base tracking-tight">QRbase</span>
+            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Community</span>
+          </div>
         </div>
 
-        {/* Right: auth */}
+
+        {/* Auth */}
         <div className="relative">
           {identity ? (
-            // Connected — show avatar + handle
             <button
               onClick={() => setShowAuthMenu((v) => !v)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border hover:bg-surface-muted transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border-2 border-border hover:border-primary/40 bg-surface-muted transition-all"
             >
               {identity.profilePhoto ? (
                 <Image
@@ -75,56 +87,54 @@ export function Navbar() {
                   alt={identity.handle}
                   width={28}
                   height={28}
-                  className="rounded-full"
+                  className="rounded-full ring-2 ring-primary/30"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
+                <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-black">
                   {identity.handle[0].toUpperCase()}
                 </div>
               )}
               <div className="flex flex-col items-start leading-tight">
-                <span className="text-xs font-semibold text-gray-900">
-                  @{identity.handle}
-                </span>
+                <span className="text-xs font-bold text-gray-900">@{identity.handle}</span>
                 <span className="flex items-center gap-1 text-[10px] text-muted">
-                  {identity.platform === "twitter" ? (
-                    <><XIcon /> Twitter</>
-                  ) : (
-                    <><FarcasterIcon /> Farcaster</>
-                  )}
+                  {identity.platform === "twitter" ? <><XIcon /> Twitter</> : <><FarcasterIcon /> Farcaster</>}
                 </span>
               </div>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              <span className="text-muted text-xs">▾</span>
             </button>
           ) : (
-            // Not connected — show both login options
             <div className="flex items-center gap-2">
               <button
                 onClick={login}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm
-                  bg-gray-900 hover:bg-gray-800 text-white transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-sm bg-gray-900 hover:bg-gray-800 text-white transition-all shadow hover:shadow-md hover:-translate-y-0.5"
               >
                 <XIcon />
                 Sign in
               </button>
-              <FarcasterAuthButton onClose={() => {}} />
+              {/* Only mount FarcasterAuthButton (and its nested PrivyProvider) after hydration
+                  so we know identity is truly null — prevents iframe conflict errors */}
+              {mounted && <FarcasterAuthButton onClose={() => {}} />}
             </div>
           )}
 
-          {/* Dropdown */}
           {showAuthMenu && identity && (
-            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-border bg-white shadow-lg overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
-                <p className="text-xs text-muted">Connected as</p>
-                <p className="font-semibold text-sm text-gray-900">@{identity.handle}</p>
+            <div className="absolute right-0 mt-2 w-56 rounded-2xl border-2 border-border bg-white shadow-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-surface-muted">
+                <p className="text-[10px] font-bold text-muted uppercase tracking-wide">gm,</p>
+                <p className="font-black text-sm text-gray-900">@{identity.handle} 👋</p>
+                {identity.walletAddress ? (
+                  <p className="text-[10px] font-mono text-muted mt-1 truncate">
+                    🔗 {identity.walletAddress.slice(0, 6)}…{identity.walletAddress.slice(-4)}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted mt-1">⚠️ No wallet linked</p>
+                )}
               </div>
               <button
                 onClick={handleDisconnect}
-                className="w-full text-left px-4 py-3 text-sm text-error hover:bg-red-50 transition-colors"
+                className="w-full text-left px-4 py-3 text-sm font-semibold text-error hover:bg-red-50 transition-colors"
               >
-                Disconnect
+                👋 Disconnect
               </button>
             </div>
           )}

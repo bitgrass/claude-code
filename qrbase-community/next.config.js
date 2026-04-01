@@ -7,6 +7,10 @@ const nextConfig = {
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "i.imgur.com" },
       { protocol: "https", hostname: "warpcast.com" },
+      { protocol: "https", hostname: "d1kgk9u8ytew77.cloudfront.net" },
+      { protocol: "https", hostname: "tba-mobile.mypinata.cloud" },
+      { protocol: "https", hostname: "openseauserdata.com" },
+      { protocol: "https", hostname: "ipfs.decentralized-content.com" },
     ],
   },
 };

@@ -8,3 +8,8 @@ body {
   background-color: #eff5ff;
   color: #0f172a;
 }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}

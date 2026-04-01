@@ -32,6 +32,20 @@ const config: Config = {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["'IBM Plex Mono'", "'Noto Sans Mono'", "monospace"],
       },
+      keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-14px)" },
+        },
+        wiggle: {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" },
+        },
+      },
+      animation: {
+        float: "float 3s ease-in-out infinite",
+        wiggle: "wiggle 1.5s ease-in-out infinite",
+      },
     },
   },
   plugins: [],
