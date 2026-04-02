@@ -62,16 +62,8 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 border-b-2 border-border bg-white/90 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
 
-        {/* Logo — fun, not corporate */}
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center shadow-md rotate-3 hover:rotate-0 transition-transform">
-            <span className="text-white text-lg">🤖</span>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="font-extrabold text-gray-900 text-base tracking-tight">QRbase</span>
-            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Community</span>
-          </div>
-        </div>
+        {/* Logo */}
+        <Image src="/logo.svg" alt="QRbase Community" width={160} height={40} className="h-9 w-auto" />
 
 
         {/* Auth */}

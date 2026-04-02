@@ -73,6 +73,46 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
   }
 }
 
+// ─── Skilled leaderboard (server-side, initial render) ───────────────────
+export async function getSkilledLeaderboardServer(limit = 50): Promise<SkilledEntry[]> {
+  try {
+    const res = await fetch(
+      `${WORKER}/leaderboard?limit=${limit}&tab=skilled`,
+      { headers: workerHeaders(), next: { revalidate: 300 } }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      success: boolean;
+      data: Array<{
+        userId: string;
+        username: string;
+        avatar: string | null;
+        level: number;
+        winRate: number;
+        totalPlays: number;
+        winsAllTime: number;
+      }>;
+    };
+    if (!data.success || !data.data) return [];
+    return data.data.map((p, i) => {
+      const { handle, platform } = parsePlatform(p.userId);
+      return {
+        rank: i + 1,
+        handle,
+        platform,
+        displayName: p.username,
+        profilePhoto: p.avatar ?? null,
+        level:      p.level ?? 1,
+        winRate:    p.winRate ?? 0,   // already a percentage
+        totalPlays: p.totalPlays ?? 0,
+        winsAllTime: p.winsAllTime ?? 0,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 // ─── Client-side helpers (call the community app's own proxy routes) ───────
 // These are called from client components — API key stays server-side.
 
@@ -278,9 +318,12 @@ export async function getPointsLeaderboard(limit = 50): Promise<PointsEntry[]> {
     .map((p, i) => ({ ...p, rank: i + 1 }));
 }
 
-export async function getActiveTasks(): Promise<ActiveTask[]> {
+export async function getActiveTasks(userId?: string): Promise<ActiveTask[]> {
   try {
-    const res = await fetch("/api/tasks", { cache: "no-store" });
+    const url = userId
+      ? `/api/tasks?userId=${encodeURIComponent(userId)}`
+      : "/api/tasks";
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
     const data = (await res.json()) as {
       success: boolean;
@@ -297,6 +340,7 @@ export async function getActiveTasks(): Promise<ActiveTask[]> {
         expiresAt: string;
         promoterName: string | null;
         promoterPhoto: string | null;
+        completedByUser: boolean;
       }>;
     };
     if (!data.success || !data.data) return [];
@@ -313,6 +357,7 @@ export async function getActiveTasks(): Promise<ActiveTask[]> {
       expiresAt:        t.expiresAt,
       promoterName:     t.promoterName,
       promoterPhoto:    t.promoterPhoto,
+      completedByUser:  t.completedByUser ?? false,
     }));
   } catch {
     return [];

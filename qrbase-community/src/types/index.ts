@@ -69,6 +69,7 @@ export interface ActiveTask {
   expiresAt: string;
   promoterName: string | null;
   promoterPhoto: string | null;
+  completedByUser: boolean;
 }
 
 export interface PointsEntry {

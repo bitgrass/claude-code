@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { getActiveTasks } from "@/lib/qrbase-api";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ActiveTask } from "@/types";
 
 const PLATFORM_STYLE = {
-  x:        { bg: "bg-gray-900 text-white",          label: "𝕏 Twitter"   },
-  farcaster: { bg: "bg-accent-purple text-white",    label: "🟣 Farcaster" },
+  x:        { bg: "bg-gray-900 text-white",       label: "𝕏 Twitter"   },
+  farcaster: { bg: "bg-accent-purple text-white", label: "🟣 Farcaster" },
 };
 
 const TYPE_ICON: Record<string, string> = {
@@ -27,17 +28,81 @@ function timeLeft(expiresAt: string): string {
   return `${h}h left`;
 }
 
-function TaskCard({ task }: { task: ActiveTask }) {
+// States a single task card can be in for the current user session
+type CardState = "idle" | "opened" | "verifying" | "done" | "error";
+
+function TaskCard({
+  task,
+  userId,
+  onCompleted,
+}: {
+  task: ActiveTask;
+  userId: string | null;
+  onCompleted: (taskId: string) => void;
+}) {
+  const [cardState, setCardState] = useState<CardState>(
+    task.completedByUser ? "done" : "idle"
+  );
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const prevCompleted = useRef(task.completedByUser);
+  useEffect(() => {
+    if (task.completedByUser && prevCompleted.current !== task.completedByUser) {
+      setCardState("done");
+    }
+    prevCompleted.current = task.completedByUser;
+  }, [task.completedByUser]);
+
   const pct = task.maxCompletions > 0
     ? Math.round((task.completionsCount / task.maxCompletions) * 100)
     : 0;
   const spotsLeft = task.maxCompletions - task.completionsCount;
-  const plat = PLATFORM_STYLE[task.platform];
-  const icon = TYPE_ICON[task.taskType] ?? "✅";
+  const plat  = PLATFORM_STYLE[task.platform];
+  const icon  = TYPE_ICON[task.taskType] ?? "✅";
   const actions = task.actionsBundled.split(",").map((a) => a.trim());
+  const isFull = spotsLeft <= 0;
+
+  // Step 1: open the target link and transition to "opened" state
+  const handleOpen = useCallback(() => {
+    window.open(task.targetLink, "_blank", "noopener,noreferrer");
+    setCardState("opened");
+  }, [task.targetLink]);
+
+  // Step 2: verify with the worker that the social action was done
+  const handleVerify = useCallback(async () => {
+    if (!userId) return;
+    setCardState("verifying");
+    setErrorMsg(null);
+    try {
+      const isMiniapp = task.taskType === "fc_miniapp_engage";
+      const res = await fetch("/api/tasks/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: task.id,
+          userId,
+          miniappAdded: isMiniapp ? true : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCardState("done");
+        onCompleted(task.id);
+      } else {
+        setErrorMsg(data.error || "Verification failed. Complete the action first.");
+        setCardState("opened"); // let them retry
+      }
+    } catch {
+      setErrorMsg("Network error. Please try again.");
+      setCardState("opened");
+    }
+  }, [userId, task.id, task.taskType, onCompleted]);
 
   return (
-    <div className="rounded-2xl border-2 border-border bg-white p-5 flex flex-col gap-3 hover:border-primary/40 hover:-translate-y-0.5 hover:shadow-sm transition-all">
+    <div className={`rounded-2xl border-2 bg-white p-5 flex flex-col gap-3 transition-all ${
+      cardState === "done"
+        ? "border-green-300 bg-green-50/40"
+        : "border-border hover:border-primary/40 hover:-translate-y-0.5 hover:shadow-sm"
+    }`}>
       {/* Top row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -51,11 +116,18 @@ function TaskCard({ task }: { task: ActiveTask }) {
             </span>
           </div>
         </div>
-        <span className={`text-[10px] font-black px-2 py-1 rounded-full whitespace-nowrap ${
-          spotsLeft <= 5 ? "bg-primary/10 text-primary" : "bg-surface-muted text-muted"
-        }`}>
-          {spotsLeft} spots left
-        </span>
+        {cardState === "done" ? (
+          <span className="text-[10px] font-black px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+            ✅ Completed
+          </span>
+        ) : (
+          <span className={`text-[10px] font-black px-2 py-1 rounded-full whitespace-nowrap ${
+            isFull ? "bg-gray-100 text-gray-400" :
+            spotsLeft <= 5 ? "bg-primary/10 text-primary" : "bg-surface-muted text-muted"
+          }`}>
+            {isFull ? "Full" : `${spotsLeft} spots left`}
+          </span>
+        )}
       </div>
 
       {/* Actions */}
@@ -82,14 +154,48 @@ function TaskCard({ task }: { task: ActiveTask }) {
       </div>
 
       {/* CTA */}
-      <a
-        href={task.targetLink}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block w-full text-center text-xs font-black py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-700 transition-colors"
-      >
-        Complete Task →
-      </a>
+      {cardState === "done" ? (
+        <div className="w-full text-center text-xs font-black py-2 rounded-xl bg-green-100 text-green-700">
+          ✅ Task completed — +{task.price} $SCAN earned
+        </div>
+      ) : !userId ? (
+        <div className="w-full text-center text-xs font-bold py-2 rounded-xl bg-surface-muted text-muted">
+          Connect to complete this task
+        </div>
+      ) : isFull ? (
+        <div className="w-full text-center text-xs font-bold py-2 rounded-xl bg-surface-muted text-muted">
+          No spots remaining
+        </div>
+      ) : cardState === "idle" ? (
+        <button
+          onClick={handleOpen}
+          className="block w-full text-center text-xs font-black py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+        >
+          Complete Task →
+        </button>
+      ) : cardState === "opened" ? (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleVerify}
+            className="w-full text-center text-xs font-black py-2 rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors"
+          >
+            Verify Completion ✓
+          </button>
+          <button
+            onClick={handleOpen}
+            className="w-full text-center text-xs font-bold py-1.5 rounded-xl border border-border text-muted hover:text-gray-700 transition-colors"
+          >
+            Re-open task link ↗
+          </button>
+          {errorMsg && (
+            <p className="text-[11px] text-red-500 font-semibold text-center">{errorMsg}</p>
+          )}
+        </div>
+      ) : cardState === "verifying" ? (
+        <div className="w-full text-center text-xs font-black py-2 rounded-xl bg-primary/10 text-primary animate-pulse">
+          Verifying…
+        </div>
+      ) : null}
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-border">
@@ -135,12 +241,36 @@ function EmptyTasks() {
 }
 
 export function TasksSection() {
-  const [tasks, setTasks]   = useState<ActiveTask[]>([]);
+  const { identity } = useAuth();
+  const [tasks, setTasks]     = useState<ActiveTask[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Build the userId string the worker expects (e.g. "x:handle" or "fc:handle")
+  const userId = identity
+    ? `${identity.platform === "farcaster" ? "fc" : "x"}:${identity.handle}`
+    : null;
+
   useEffect(() => {
-    getActiveTasks().then((t) => { setTasks(t); setLoading(false); });
+    setLoading(true);
+    getActiveTasks(userId ?? undefined).then((t) => {
+      setTasks(t);
+      setLoading(false);
+    });
+  }, [userId]);
+
+  // When a task is completed locally, bump its completedByUser flag so the
+  // card flips to "done" even before the next fetch.
+  const handleCompleted = useCallback((taskId: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, completedByUser: true, completionsCount: t.completionsCount + 1 }
+          : t
+      )
+    );
   }, []);
+
+  const completedCount = tasks.filter((t) => t.completedByUser).length;
 
   return (
     <div>
@@ -159,6 +289,11 @@ export function TasksSection() {
               {tasks.length} live tasks
             </span>
           )}
+          {!loading && userId && completedCount > 0 && (
+            <span className="text-xs font-black px-3 py-1.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+              ✅ {completedCount} completed
+            </span>
+          )}
           <span className="text-xs font-black px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 animate-pulse">
             🚀 Updates live
           </span>
@@ -169,7 +304,14 @@ export function TasksSection() {
         <Skeleton />
       ) : tasks.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {tasks.map((task) => <TaskCard key={task.id} task={task} />)}
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              userId={userId}
+              onCompleted={handleCompleted}
+            />
+          ))}
         </div>
       ) : (
         <EmptyTasks />

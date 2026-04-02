@@ -95,7 +95,7 @@ function EmptyState({ msg }: { msg: string }) {
 function PointsTable({ entries }: { entries: PointsEntry[] }) {
   if (!entries.length) return <EmptyState msg="No ranked players yet — go earn some points!" />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-border bg-surface-muted">
@@ -181,7 +181,7 @@ function PointsTable({ entries }: { entries: PointsEntry[] }) {
 function WinsTable({ entries }: { entries: LeaderboardEntry[] }) {
   if (!entries.length) return <EmptyState msg="No ranked players yet" />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-border bg-surface-muted">
@@ -229,7 +229,7 @@ function WinsTable({ entries }: { entries: LeaderboardEntry[] }) {
 function SkilledTable({ entries }: { entries: SkilledEntry[] }) {
   if (!entries.length) return <EmptyState msg="No ranked players yet" />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-border bg-surface-muted">
@@ -274,7 +274,7 @@ function SkilledTable({ entries }: { entries: SkilledEntry[] }) {
 function SpendersTable({ entries }: { entries: SpendersEntry[] }) {
   if (!entries.length) return <EmptyState msg="No spenders yet — ngmi if you haven't bought attempts" />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-border bg-surface-muted">
@@ -328,7 +328,7 @@ function SpendersTable({ entries }: { entries: SpendersEntry[] }) {
 function ReferralTable({ entries }: { entries: ReferralEntry[] }) {
   if (!entries.length) return <EmptyState msg="No referrers yet — share your link fren" />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-border bg-surface-muted">
@@ -421,9 +421,9 @@ export function TabbedLeaderboard({
   useEffect(() => { loadTab(activeTab); }, [activeTab, loadTab]);
 
   return (
-    <div className="rounded-3xl border-2 border-border bg-white overflow-hidden">
+    <div className="h-full flex flex-col rounded-3xl border-2 border-border bg-white overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b-2 border-border bg-surface-muted flex flex-wrap items-center justify-between gap-3">
+      <div className="flex-shrink-0 px-6 py-4 border-b-2 border-border bg-surface-muted flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">🏆</span>
           <span className="font-extrabold text-gray-900">Leaderboard</span>
@@ -439,7 +439,7 @@ export function TabbedLeaderboard({
       </div>
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto border-b-2 border-border">
+      <div className="flex-shrink-0 flex overflow-x-auto border-b-2 border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -453,13 +453,12 @@ export function TabbedLeaderboard({
             }`}
           >
             {t.label}
-            <span className="hidden sm:inline ml-1 font-normal opacity-60">· {t.desc}</span>
           </button>
         ))}
       </div>
 
-      {/* Content */}
-      <div className="min-h-[300px]">
+      {/* Rows — only this part scrolls */}
+      <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {loading && !fetched.has(activeTab) ? (
           <Skeleton />
         ) : (
@@ -473,11 +472,11 @@ export function TabbedLeaderboard({
         )}
       </div>
 
-      {/* Footer */}
-      <div className="px-6 py-3 border-t-2 border-border bg-surface-muted text-center">
+      {/* Footer — always visible */}
+      <div className="flex-shrink-0 px-6 py-3 border-t-2 border-border bg-surface-muted text-center">
         {activeTab === "points" ? (
           <p className="text-xs text-muted font-semibold">
-            Points board is the <span className="font-black text-green-700">official WL board</span> — top 50 get guaranteed NFT whitelist spots 🎁
+            <span className="font-black text-green-700">Points board</span> is the official WL board — top 50 get guaranteed NFT whitelist spots 🎁
             <span className="block mt-0.5 text-[10px]">More point sources coming soon: campaigns, boosts, scan-mode wins, task creation, $SCAN holdings</span>
           </p>
         ) : (
