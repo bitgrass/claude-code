@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+body {
+  background-color: #050714;
+  color: #ffffff;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes pulse-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+  50%       { opacity: 0.82; transform: scale(0.97); filter: brightness(0.88); }
+}
+
+.qr-breathe {
+  animation: pulse-breathe 3s ease-in-out infinite;
+}
