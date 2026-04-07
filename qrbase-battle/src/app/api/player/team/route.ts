@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { verifyTeamGate } from "@/lib/team-gate";
 
 export async function POST(req: NextRequest) {
-  const { handle, platform = "twitter", team, displayName, photo } = await req.json();
+  const { handle, platform = "twitter", team, displayName, photo, walletAddress } = await req.json();
   const safePlatform = platform === "farcaster" ? "farcaster" : "twitter";
   const safeTeam = team ?? null;
 
@@ -11,6 +12,20 @@ export async function POST(req: NextRequest) {
   }
   if (safeTeam !== null && !["red", "blue", "green"].includes(safeTeam)) {
     return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+  }
+
+  if (safeTeam !== null) {
+    if (!walletAddress) {
+      return NextResponse.json({ error: "Connect your Privy wallet to join a team" }, { status: 400 });
+    }
+
+    const gate = await verifyTeamGate(walletAddress, safeTeam);
+    if (!gate.allowed) {
+      return NextResponse.json(
+        { error: gate.reason },
+        { status: gate.retryable ? 503 : 403 }
+      );
+    }
   }
 
   await sql`

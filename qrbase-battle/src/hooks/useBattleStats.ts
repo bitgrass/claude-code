@@ -26,19 +26,26 @@ export function useBattleStats(handle: string | null, platform = "twitter") {
   }, [handle, platform]);
 
   const setTeam = useCallback(
-    async (team: Team | null, displayName?: string | null, photo?: string | null) => {
-      if (!handle) return;
+    async (
+      team: Team | null,
+      displayName?: string | null,
+      photo?: string | null,
+      walletAddress?: string | null
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!handle) return { ok: false, error: "No connected identity" };
       const res = await fetch("/api/player/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle, platform, team, displayName, photo }),
+        body: JSON.stringify({ handle, platform, team, displayName, photo, walletAddress }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         if (data.player) {
           setStats((prev) => ({ ...prev, team: data.player.team ?? null }));
         }
+        return { ok: true };
       }
+      return { ok: false, error: data.error ?? "Failed to update team" };
     },
     [handle, platform]
   );

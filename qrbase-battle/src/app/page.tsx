@@ -36,6 +36,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [liveBattles, setLiveBattles] = useState<any[]>([]);
+  const [teamActionError, setTeamActionError] = useState<string | null>(null);
 
   const refreshStandings = () => {
     fetch("/api/teams")
@@ -104,12 +105,24 @@ export default function Home() {
 
   const handleJoinTeam = (t: Team) => {
     if (!identity) return;
-    setTeam(t, identity.displayName, identity.profilePhoto).then(() => refreshStandings());
+    setTeam(t, identity.displayName, identity.profilePhoto, identity.walletAddress).then((result) => {
+      if (!result.ok) {
+        setTeamActionError(result.error ?? "Unable to join team");
+        return;
+      }
+      setTeamActionError(null);
+      refreshStandings();
+    });
   };
 
   const handleLeaveTeam = () => {
     if (!identity) return;
-    setTeam(null, identity.displayName, identity.profilePhoto).then(() => {
+    setTeam(null, identity.displayName, identity.profilePhoto, identity.walletAddress).then((result) => {
+      if (!result.ok) {
+        setTeamActionError(result.error ?? "Unable to leave team");
+        return;
+      }
+      setTeamActionError(null);
       refreshStandings();
       setMyTeamMembers([]);
     });
@@ -353,6 +366,11 @@ export default function Home() {
                 );
               })}
             </div>
+            {teamActionError && (
+              <p className="text-xs font-semibold mt-3" style={{ color: "#F87171" }}>
+                {teamActionError}
+              </p>
+            )}
           </div>
 
           {/* Battle Controls */}
