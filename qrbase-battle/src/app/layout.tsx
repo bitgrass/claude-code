@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/Navbar";
+import { WarChatDock } from "@/components/WarChatDock";
 
 export const metadata: Metadata = {
   title: "QRbase Battle",
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <Navbar />
           {children}
+          <WarChatDock />
         </Providers>
       </body>
     </html>

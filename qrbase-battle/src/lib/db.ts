@@ -43,3 +43,15 @@ export interface PlayerRow {
   created_at: string;
   updated_at: string;
 }
+
+export interface ChatMessageRow {
+  id: number;
+  channel: "global" | "team";
+  team: Team | null;
+  handle: string;
+  platform: Platform;
+  display_name: string | null;
+  photo: string | null;
+  message: string;
+  created_at: string;
+}

@@ -79,3 +79,22 @@ ALTER TABLE battles ADD COLUMN IF NOT EXISTS player2_moves     INTEGER NOT NULL 
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS player1_board     TEXT;
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS player2_board     TEXT;
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS rematch_room_id   TEXT;
+
+-- Live chat messages (global + per-team channels)
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id           SERIAL PRIMARY KEY,
+  channel      TEXT NOT NULL, -- 'global' | 'team'
+  team         TEXT REFERENCES teams(id), -- required for channel='team'
+  handle       TEXT NOT NULL,
+  platform     TEXT NOT NULL DEFAULT 'twitter',
+  display_name TEXT,
+  photo        TEXT,
+  message      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_team_created
+  ON chat_messages (channel, team, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_created
+  ON chat_messages (channel, created_at DESC);

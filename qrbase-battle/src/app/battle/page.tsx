@@ -278,6 +278,27 @@ function BattlePageInner() {
     gameOverRef.current = true;
     recordWin();
 
+    const optimisticRoom: BattleRow = isPlayer1
+      ? {
+          ...room,
+          status: "done",
+          player1_solved_ms: solveMs,
+          winner: myHandle,
+          winner_platform: identity?.platform ?? "twitter",
+        }
+      : {
+          ...room,
+          status: "done",
+          player2_solved_ms: solveMs,
+          winner: myHandle,
+          winner_platform: identity?.platform ?? "twitter",
+        };
+
+    // Show result popup immediately on local solve; server response can refine final state.
+    setRoom(optimisticRoom);
+    setResultShown(true);
+    setPhase("result");
+
     const progressParams = new URLSearchParams({
       handle: myHandle,
       moves: String(myMovesRef.current),
@@ -302,8 +323,20 @@ function BattlePageInner() {
       if (data.room) {
         setRoom(data.room as BattleRow);
       }
-      setResultShown(true);
-      setPhase("result");
+      return;
+    }
+
+    // Fallback: if solve call failed transiently, try to read latest room once.
+    try {
+      const roomRes = await fetch(`/api/battle/${room.id}`);
+      if (roomRes.ok) {
+        const data = await roomRes.json();
+        if (data.room) {
+          setRoom(data.room as BattleRow);
+        }
+      }
+    } catch {
+      // keep optimistic result view
     }
   }, [room, myHandle, identity, recordWin]);
 
@@ -628,6 +661,7 @@ function BattlePageInner() {
 
         {/* Puzzle */}
         <QRPuzzle
+          key={`${room.id}:${room.tile_seed}`}
           initialTiles={tiles}
           onSolve={handleSolve}
           startTime={startTimeRef.current}
