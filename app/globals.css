@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-cream: #f5f1e8;
+  --color-cream-deep: #eee8d8;
+  --color-sovereign: #1b4332;
+  --color-sovereign-deep: #14332a;
+  --color-copper: #bc6c25;
+  --color-ink: #0a1f1c;
+  --color-stone: #7a8a7e;
+}
+
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background-color: var(--color-sovereign);
+  color: var(--color-cream);
+}
+
+a {
+  color: inherit;
+}
+
+/* Visible focus states for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+/* Editorial section rule */
+.rule {
+  height: 1px;
+  background-color: rgba(10, 31, 28, 0.22);
+}
+
+.hairline {
+  background-color: rgba(10, 31, 28, 0.1);
+}
+
+/* Prose-like body paragraphs */
+.editorial p {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-ink);
+}
+
+.editorial p + p {
+  margin-top: 1.25rem;
+}
+
+/* On the dark sovereign section */
+.on-sovereign {
+  color: var(--color-cream);
+}
+
+.on-sovereign .stone {
+  color: rgba(245, 241, 232, 0.62);
+}
