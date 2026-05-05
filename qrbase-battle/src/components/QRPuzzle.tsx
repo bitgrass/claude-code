@@ -8,13 +8,14 @@ interface QRPuzzleProps {
   onSolve: (timeMs: number, moves: number) => void;
   startTime: number;
   disabled?: boolean;
+  blurred?: boolean;
+  frozenMs?: number;
   onMove?: (moves: number, board: (number | null)[]) => void;
   gradientColors?: [string, string];
 }
 
-// Reference app uses 440×440 grid — we match that
 const GRID = 360;
-const TILE = GRID / 3; // 120px per tile
+const TILE = GRID / 3;
 
 function withAlpha(hex: string, alpha: number): string {
   const clean = hex.replace("#", "");
@@ -63,11 +64,14 @@ export function QRPuzzle({
   onSolve,
   startTime,
   disabled,
+  blurred = false,
+  frozenMs = 0,
   onMove,
   gradientColors = ["#64748b", "#9ca3af"],
 }: QRPuzzleProps) {
   const [tiles, setTiles] = useState<(number | null)[]>(initialTiles);
   const [moves, setMoves] = useState(0);
+
   const frameColor = withAlpha(gradientColors[0], 0.28);
   const frameColorStrong = withAlpha(gradientColors[1], 0.38);
   const plusColor = withAlpha(gradientColors[1], 0.55);
@@ -100,19 +104,21 @@ export function QRPuzzle({
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Moves badge — matches reference style */}
       <div
         className="flex items-center gap-3 px-5 py-2 rounded-full shadow-sm"
         style={{
-          border: "1px solid rgba(255,255,255,0.16)",
-          background: "rgba(8,12,26,0.9)",
+          border: "1px solid rgba(var(--fg-rgb),0.16)",
+          background: "var(--panel-bg)",
         }}
       >
-        <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.65)" }}>Moves</span>
-        <span className="text-xl font-black tabular-nums" style={{ color: "#fff" }}>{moves}</span>
+        <span className="text-sm font-semibold" style={{ color: "rgba(var(--fg-rgb),0.65)" }}>
+          Moves
+        </span>
+        <span className="text-xl font-black tabular-nums" style={{ color: "var(--text-main)" }}>
+          {moves}
+        </span>
       </div>
 
-      {/* Puzzle grid — matches reference: w-[360px] border-2 border-gray-300 rounded-lg grid-cols-3 */}
       <div
         className="rounded-lg overflow-hidden shadow-lg"
         style={{
@@ -120,6 +126,8 @@ export function QRPuzzle({
           height: GRID,
           border: `2px solid ${frameColorStrong}`,
           background: "#070d1d",
+          filter: blurred ? "blur(2.2px)" : "none",
+          transition: "filter 120ms linear",
           display: "grid",
           gridTemplateColumns: `repeat(3, ${TILE}px)`,
           gridTemplateRows: `repeat(3, ${TILE}px)`,
@@ -142,8 +150,8 @@ export function QRPuzzle({
                 }}
               >
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <line x1="16" y1="6" x2="16" y2="26" stroke={plusColor} strokeWidth="2.5" strokeLinecap="round"/>
-                  <line x1="6" y1="16" x2="26" y2="16" stroke={plusColor} strokeWidth="2.5" strokeLinecap="round"/>
+                  <line x1="16" y1="6" x2="16" y2="26" stroke={plusColor} strokeWidth="2.5" strokeLinecap="round" />
+                  <line x1="6" y1="16" x2="26" y2="16" stroke={plusColor} strokeWidth="2.5" strokeLinecap="round" />
                 </svg>
               </div>
             );
@@ -155,9 +163,7 @@ export function QRPuzzle({
               onClick={() => handleClick(slotIndex)}
               className={[
                 "relative group select-none",
-                isAdjacent && !disabled
-                  ? "cursor-pointer"
-                  : "cursor-default",
+                isAdjacent && !disabled ? "cursor-pointer" : "cursor-default",
               ].join(" ")}
               style={{
                 ...tileStyle(tileValue, gradientColors),
@@ -166,7 +172,6 @@ export function QRPuzzle({
                 outlineOffset: "-2px",
               }}
             >
-              {/* Hover overlay for adjacent tiles */}
               {isAdjacent && !disabled && (
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
@@ -177,6 +182,12 @@ export function QRPuzzle({
           );
         })}
       </div>
+
+      {(disabled || frozenMs > 0 || blurred) && (
+        <div className="text-xs font-bold" style={{ color: "rgba(var(--fg-rgb),0.7)" }}>
+          {frozenMs > 0 ? `Frozen ${(frozenMs / 1000).toFixed(1)}s` : blurred ? "Distorted by spell" : "Locked"}
+        </div>
+      )}
     </div>
   );
 }

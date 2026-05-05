@@ -22,11 +22,11 @@ export interface BattleResult {
 
 export const TEAMS: Record<Team, { label: string; color: string; bg: string; border: string; text: string }> = {
   red: {
-    label: "Red Team",
-    color: "#EF4444",
-    bg: "bg-red-50",
-    border: "border-red-300",
-    text: "text-red-600",
+    label: "Purple Team",
+    color: "#8B5CF6",
+    bg: "bg-purple-50",
+    border: "border-purple-300",
+    text: "text-purple-600",
   },
   blue: {
     label: "Blue Team",

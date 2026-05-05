@@ -7,12 +7,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBattleStats } from "@/hooks/useBattleStats";
 import { TEAMS } from "@/types/battle";
 import type { Team } from "@/types/battle";
+import type { ItemInventory } from "@/lib/items";
 import { QRWarDisplay } from "@/components/QRWarDisplay";
 
 const TEAM_EMOJIS: Record<Team, string> = {
-  red: "🔴",
-  blue: "🔵",
-  green: "🟢",
+  red: "R",
+  blue: "B",
+  green: "G",
 };
 
 interface TeamMember {
@@ -24,6 +25,11 @@ interface TeamMember {
   losses: number;
   pr: number;
 }
+
+const EMPTY_ITEM_INVENTORY: ItemInventory = {
+  spell_frost: 0,
+  shield_guard: 0,
+};
 
 export default function Home() {
   const router = useRouter();
@@ -37,6 +43,8 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [liveBattles, setLiveBattles] = useState<any[]>([]);
   const [teamActionError, setTeamActionError] = useState<string | null>(null);
+  const [itemInventory, setItemInventory] = useState<ItemInventory>(EMPTY_ITEM_INVENTORY);
+  const [itemInventoryLoading, setItemInventoryLoading] = useState(false);
 
   const refreshStandings = () => {
     fetch("/api/teams")
@@ -86,6 +94,32 @@ export default function Home() {
       .catch(() => {});
   }, [stats.team]);
 
+  useEffect(() => {
+    if (!identity) {
+      setItemInventory(EMPTY_ITEM_INVENTORY);
+      setItemInventoryLoading(false);
+      return;
+    }
+
+    setItemInventoryLoading(true);
+    const params = new URLSearchParams({
+      handle: identity.handle,
+      platform: identity.platform,
+      sync: "1",
+    });
+    if (identity.walletAddress) params.set("walletAddress", identity.walletAddress);
+
+    fetch(`/api/items/inventory?${params.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.inventory) {
+          setItemInventory({ ...EMPTY_ITEM_INVENTORY, ...data.inventory });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setItemInventoryLoading(false));
+  }, [identity]);
+
   const sortedTeams = (["red", "blue", "green"] as Team[]).sort(
     (a, b) => teamPR[b] - teamPR[a]
   );
@@ -134,7 +168,7 @@ export default function Home() {
   const displayedMembers = showAllMembers ? myTeamMembers : myTeamMembers.slice(0, 5);
 
   return (
-    <div className="flex flex-col" style={{ background: "#050714", color: "#fff", minHeight: "calc(100vh - 56px)" }}>
+    <div className="flex flex-col" style={{ background: "var(--app-bg)", color: "var(--text-main)", minHeight: "calc(100vh - 56px)" }}>
       {/* Main content */}
       <main className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {/* Left Panel */}
@@ -143,16 +177,16 @@ export default function Home() {
           style={{
             width: "400px",
             minWidth: "400px",
-            background: "#080c1a",
-            borderRight: "1px solid rgba(255,255,255,0.06)",
+            background: "var(--panel-bg)",
+            borderRight: "1px solid rgba(var(--fg-rgb),0.06)",
           }}
         >
           {/* User Card */}
           <div
             className="rounded-2xl p-4"
             style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(var(--fg-rgb),0.03)",
+              border: "1px solid rgba(var(--fg-rgb),0.08)",
             }}
           >
             {identity ? (
@@ -181,8 +215,8 @@ export default function Home() {
                       <span
                         className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
                         style={{
-                          background: "rgba(255,255,255,0.06)",
-                          color: "rgba(255,255,255,0.5)",
+                          background: "rgba(var(--fg-rgb),0.06)",
+                          color: "rgba(var(--fg-rgb),0.5)",
                         }}
                       >
                         {identity.platform}
@@ -224,6 +258,45 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
+                <div
+                  className="mt-3 rounded-xl p-3"
+                  style={{ background: "rgba(var(--fg-rgb),0.02)", border: "1px solid rgba(var(--fg-rgb),0.07)" }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "rgba(var(--fg-rgb),0.45)" }}>
+                      Arcane Items
+                    </p>
+                    <button
+                      onClick={() => router.push("/store")}
+                      className="text-[10px] font-bold"
+                      style={{ color: "#34D399" }}
+                    >
+                      Open Store
+                    </button>
+                  </div>
+
+                  {itemInventoryLoading ? (
+                    <p className="text-xs" style={{ color: "rgba(var(--fg-rgb),0.5)" }}>
+                      Syncing inventory...
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div
+                        className="rounded-lg px-2 py-2 text-xs font-semibold"
+                        style={{ background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.35)" }}
+                      >
+                        Frost Hex: {itemInventory.spell_frost}
+                      </div>
+                      <div
+                        className="rounded-lg px-2 py-2 text-xs font-semibold"
+                        style={{ background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.35)" }}
+                      >
+                        Aegis Shield: {itemInventory.shield_guard}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <div className="text-center py-4">
@@ -231,10 +304,10 @@ export default function Home() {
                   className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl"
                   style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)" }}
                 >
-                  ⚔️
+                  ?
                 </div>
                 <p className="font-bold text-white mb-1">Connect to Battle</p>
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <p className="text-xs" style={{ color: "rgba(var(--fg-rgb),0.4)" }}>
                   Sign in with X to join a clan and start battling
                 </p>
               </div>
@@ -245,19 +318,19 @@ export default function Home() {
           <div
             className="rounded-2xl p-4"
             style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(var(--fg-rgb),0.03)",
+              border: "1px solid rgba(var(--fg-rgb),0.08)",
             }}
           >
             <div className="flex items-center justify-between mb-3">
               <h2
                 className="text-xs font-black uppercase tracking-widest"
-                style={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+                style={{ color: "rgba(var(--fg-rgb),0.5)", fontFamily: "monospace" }}
               >
                 CLAN WAR
               </h2>
-              <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
-                PR = member wins − losses
+              <span className="text-[10px]" style={{ color: "rgba(var(--fg-rgb),0.3)" }}>
+                PR = member wins - losses
               </span>
             </div>
 
@@ -274,10 +347,10 @@ export default function Home() {
                     key={t}
                     className="rounded-xl p-3"
                     style={{
-                      background: isMyTeam ? `${team.color}12` : "rgba(255,255,255,0.02)",
+                      background: isMyTeam ? `${team.color}12` : "rgba(var(--fg-rgb),0.02)",
                       border: isMyTeam
                         ? `1px solid ${team.color}40`
-                        : "1px solid rgba(255,255,255,0.05)",
+                        : "1px solid rgba(var(--fg-rgb),0.05)",
                     }}
                   >
                     <div className="flex items-center gap-2 mb-2">
@@ -296,7 +369,7 @@ export default function Home() {
                         </div>
                         <span
                           className="text-[10px] font-semibold"
-                          style={{ color: "rgba(255,255,255,0.35)" }}
+                          style={{ color: "rgba(var(--fg-rgb),0.35)" }}
                         >
                           {teamMembers[t]} {teamMembers[t] === 1 ? "member" : "members"}
                         </span>
@@ -310,7 +383,7 @@ export default function Home() {
                         </span>
                         <p
                           className="text-[10px]"
-                          style={{ color: "rgba(255,255,255,0.3)" }}
+                          style={{ color: "rgba(var(--fg-rgb),0.3)" }}
                         >
                           {pct.toFixed(1)}%
                         </p>
@@ -328,7 +401,7 @@ export default function Home() {
                     {/* Strength bar */}
                     <div
                       className="h-1 rounded-full overflow-hidden mb-2"
-                      style={{ background: "rgba(255,255,255,0.06)" }}
+                      style={{ background: "rgba(var(--fg-rgb),0.06)" }}
                     >
                       <div
                         className="h-full rounded-full transition-all duration-700"
@@ -378,13 +451,13 @@ export default function Home() {
             <div
               className="rounded-2xl p-4"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(var(--fg-rgb),0.03)",
+                border: "1px solid rgba(var(--fg-rgb),0.08)",
               }}
             >
               <h2
                 className="text-xs font-black uppercase tracking-widest mb-3"
-                style={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+                style={{ color: "rgba(var(--fg-rgb),0.5)", fontFamily: "monospace" }}
               >
                 BATTLE CONTROLS
               </h2>
@@ -392,19 +465,19 @@ export default function Home() {
                 onClick={handleCreate}
                 className="w-full py-3 rounded-xl font-black text-white text-sm transition-all mb-3"
                 style={{
-                  background: `linear-gradient(135deg, ${userTeamColor}, ${userTeamColor}cc)`,
-                  boxShadow: `0 0 20px ${userTeamColor}40`,
+                  background: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
+                  boxShadow: "0 0 22px rgba(99,102,241,0.45)",
                 }}
               >
-                ⚔️ Launch Battle
+                Launch Battle
               </button>
 
               <div className="flex items-center gap-3 mb-3">
-                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
-                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <div className="flex-1 h-px" style={{ background: "rgba(var(--fg-rgb),0.08)" }} />
+                <span className="text-xs font-bold" style={{ color: "rgba(var(--fg-rgb),0.3)" }}>
                   OR
                 </span>
-                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                <div className="flex-1 h-px" style={{ background: "rgba(var(--fg-rgb),0.08)" }} />
               </div>
 
               <div className="flex gap-2">
@@ -416,9 +489,9 @@ export default function Home() {
                   maxLength={6}
                   className="flex-1 px-3 py-2 rounded-lg font-mono font-bold text-sm tracking-widest text-center focus:outline-none uppercase transition-all"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "#fff",
+                    background: "rgba(var(--fg-rgb),0.04)",
+                    border: "1px solid rgba(var(--fg-rgb),0.1)",
+                    color: "var(--text-main)",
                   }}
                 />
                 <button
@@ -426,9 +499,9 @@ export default function Home() {
                   disabled={joinCode.length < 6}
                   className="px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-30"
                   style={{
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: "#fff",
+                    background: "rgba(var(--fg-rgb),0.08)",
+                    border: "1px solid rgba(var(--fg-rgb),0.12)",
+                    color: "var(--text-main)",
                   }}
                 >
                   Join Room
@@ -442,14 +515,14 @@ export default function Home() {
             <div
               className="rounded-2xl p-4"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(var(--fg-rgb),0.03)",
+                border: "1px solid rgba(var(--fg-rgb),0.08)",
               }}
             >
               <div className="flex items-center justify-between mb-3">
                 <h2
                   className="text-xs font-black uppercase tracking-widest"
-                  style={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+                  style={{ color: "rgba(var(--fg-rgb),0.5)", fontFamily: "monospace" }}
                 >
                   MY TEAM
                 </h2>
@@ -469,7 +542,7 @@ export default function Home() {
                   <div
                     key={`${m.handle}-${m.platform}`}
                     className="flex items-center gap-2 px-2 py-2 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.03)" }}
+                    style={{ background: "rgba(var(--fg-rgb),0.03)" }}
                   >
                     {m.photo ? (
                       <Image
@@ -489,7 +562,7 @@ export default function Home() {
                     )}
                     <span
                       className="text-xs font-semibold flex-1 truncate"
-                      style={{ color: "rgba(255,255,255,0.8)" }}
+                      style={{ color: "rgba(var(--fg-rgb),0.8)" }}
                     >
                       @{m.handle}
                       {identity.handle === m.handle && (
@@ -517,14 +590,14 @@ export default function Home() {
             <div
               className="rounded-2xl p-4"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(var(--fg-rgb),0.03)",
+                border: "1px solid rgba(var(--fg-rgb),0.08)",
               }}
             >
               <div className="flex items-center gap-2 mb-3">
                 <h2
                   className="text-xs font-black uppercase tracking-widest"
-                  style={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+                  style={{ color: "rgba(var(--fg-rgb),0.5)", fontFamily: "monospace" }}
                 >
                   LIVE BATTLES
                 </h2>
@@ -543,8 +616,8 @@ export default function Home() {
                     onClick={() => router.push(`/watch/${b.id}`)}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all w-full"
                     style={{
-                      background: b.status === "active" ? "rgba(16,185,129,0.06)" : "rgba(255,255,255,0.02)",
-                      border: `1px solid ${b.status === "active" ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.05)"}`,
+                      background: b.status === "active" ? "rgba(16,185,129,0.06)" : "rgba(var(--fg-rgb),0.02)",
+                      border: `1px solid ${b.status === "active" ? "rgba(16,185,129,0.2)" : "rgba(var(--fg-rgb),0.05)"}`,
                     }}
                   >
                     <span
@@ -554,14 +627,14 @@ export default function Home() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-white truncate">
                         @{b.player1_handle}
-                        {b.player2_handle ? ` vs @${b.player2_handle}` : " — waiting…"}
+                        {b.player2_handle ? ` vs @${b.player2_handle}` : " - waiting..."}
                       </p>
-                      <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      <p className="text-[10px]" style={{ color: "rgba(var(--fg-rgb),0.35)" }}>
                         {b.status === "active" ? `${b.player1_moves + b.player2_moves} total moves` : "Looking for opponent"}
                       </p>
                     </div>
-                    <span className="text-[10px] font-bold" style={{ color: b.status === "active" ? "#10B981" : "rgba(255,255,255,0.3)" }}>
-                      {b.status === "active" ? "Watch →" : "Join →"}
+                    <span className="text-[10px] font-bold" style={{ color: b.status === "active" ? "#10B981" : "rgba(var(--fg-rgb),0.3)" }}>
+                      {b.status === "active" ? "Watch ->" : "Join ->"}
                     </span>
                   </button>
                 ))}
@@ -572,8 +645,8 @@ export default function Home() {
 
         {/* Right Panel */}
         <div
-          className="flex-1 flex flex-col items-center justify-center relative overflow-hidden"
-          style={{ background: "#050714" }}
+          className="flex-1 flex flex-col items-center justify-start relative overflow-hidden"
+          style={{ background: "var(--app-bg)" }}
         >
           {/* Scanline effect */}
           <div
@@ -585,74 +658,24 @@ export default function Home() {
             }}
           />
 
-          <div className="relative z-10 flex flex-col items-center gap-6 p-8 w-full max-w-xl">
-            {/* Title */}
-            <div className="text-center">
-              <h1
-                className="text-4xl font-black tracking-wider mb-1"
-                style={{
-                  fontFamily: "monospace",
-                  background: "linear-gradient(135deg, #EF4444, #3B82F6, #10B981)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                QR-WAR
-              </h1>
-              <p
-                className="text-xs font-semibold tracking-wide"
-                style={{ color: "rgba(255,255,255,0.35)" }}
-              >
-                The team with the most battles wins dominates the code
-              </p>
-            </div>
-
-            {/* QR Display */}
+          <div className="relative z-10 flex h-full w-full items-center justify-center px-2 py-2">
             <div
-              className="w-full aspect-square rounded-2xl overflow-hidden qr-breathe"
+              className="qr-ocean-stage"
               style={{
-                maxWidth: "420px",
-                boxShadow: "0 0 60px rgba(99,102,241,0.15), 0 0 120px rgba(99,102,241,0.05)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                width: "min(76vh, 100%)",
+                maxWidth: "780px",
+                minWidth: "300px",
               }}
             >
-              <QRWarDisplay
-                redPR={teamPR.red}
-                bluePR={teamPR.blue}
-                greenPR={teamPR.green}
-              />
-            </div>
-
-            {/* Legend */}
-            <div className="flex gap-3 w-full justify-center flex-wrap">
-              {(["red", "blue", "green"] as Team[]).map((t) => {
-                const team = TEAMS[t];
-                const pct = totalPR > 0 ? ((teamPR[t] / totalPR) * 100).toFixed(1) : "33.3";
-                return (
-                  <div
-                    key={t}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{
-                      background: `${team.color}12`,
-                      border: `1px solid ${team.color}30`,
-                    }}
-                  >
-                    <span className="text-base">{TEAM_EMOJIS[t]}</span>
-                    <div>
-                      <p className="text-xs font-bold" style={{ color: team.color }}>
-                        {team.label}
-                      </p>
-                      <p
-                        className="text-[10px] font-black tabular-nums"
-                        style={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
-                      >
-                        {teamPR[t]} PR · {pct}%
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="qr-ocean-shell">
+                <QRWarDisplay
+                  redPR={teamPR.red}
+                  bluePR={teamPR.blue}
+                  greenPR={teamPR.green}
+                />
+                <div className="qr-water-layer" />
+                <div className="qr-glass-layer" />
+              </div>
             </div>
           </div>
         </div>
@@ -660,3 +683,4 @@ export default function Home() {
     </div>
   );
 }
+

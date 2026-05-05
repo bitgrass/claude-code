@@ -25,6 +25,14 @@ export interface BattleRow {
   player2_moves: number;
   player1_board: string | null;
   player2_board: string | null;
+  player1_blur_until: string | null;
+  player2_blur_until: string | null;
+  player1_freeze_until: string | null;
+  player2_freeze_until: string | null;
+  player1_pending_spell_until: string | null;
+  player2_pending_spell_until: string | null;
+  player1_casting_until: string | null;
+  player2_casting_until: string | null;
   winner: string | null;
   winner_platform: Platform | null;
   rematch_room_id: string | null;
@@ -54,4 +62,13 @@ export interface ChatMessageRow {
   photo: string | null;
   message: string;
   created_at: string;
+}
+
+export interface UserItemRow {
+  handle: string;
+  platform: Platform;
+  item_id: string;
+  quantity: number;
+  used_count: number;
+  updated_at: string;
 }

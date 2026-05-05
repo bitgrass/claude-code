@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { parsePuzzleBoard, serializePuzzleBoard } from "@/lib/battle-utils";
 import { finalizeTimedOutBattleById } from "@/lib/battle-lifecycle";
+import { finalizeBattleItemTimingsByRoomId, getBattleInventories } from "@/lib/battle-items";
+import type { BattleRow } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { roomId: string } }) {
   await finalizeTimedOutBattleById(params.roomId);
+  await finalizeBattleItemTimingsByRoomId(params.roomId);
 
   const handle = req.nextUrl.searchParams.get("handle");
   const movesParam = req.nextUrl.searchParams.get("moves");
@@ -20,7 +23,14 @@ export async function GET(req: NextRequest, { params }: { params: { roomId: stri
 
     if (moves !== null || board !== null) {
       const rows = await sql`
-        SELECT player1_handle, player2_handle, status
+        SELECT
+          player1_handle,
+          player2_handle,
+          status,
+          player1_freeze_until,
+          player2_freeze_until,
+          player1_pending_spell_until,
+          player2_pending_spell_until
         FROM battles
         WHERE id = ${params.roomId}
       `;
@@ -33,12 +43,19 @@ export async function GET(req: NextRequest, { params }: { params: { roomId: stri
           if (battleRows.length === 0) {
             return NextResponse.json({ error: "Room not found" }, { status: 404 });
           }
-          return NextResponse.json({ room: battleRows[0] });
+          const latestRoom = battleRows[0] as BattleRow;
+          const items = await getBattleInventories(latestRoom);
+          return NextResponse.json({ room: latestRoom, items });
         }
         const serializedBoard = board ? serializePuzzleBoard(board) : null;
 
         if (room.player1_handle === handle) {
-          if (moves !== null && serializedBoard !== null) {
+          if (
+            (room.player1_freeze_until && new Date(room.player1_freeze_until).getTime() > Date.now()) ||
+            (room.player1_pending_spell_until && new Date(room.player1_pending_spell_until).getTime() > Date.now())
+          ) {
+            // Frozen/pending target: movement updates are blocked.
+          } else if (moves !== null && serializedBoard !== null) {
             await sql`
               UPDATE battles
               SET player1_moves = ${moves}, player1_board = ${serializedBoard}
@@ -58,7 +75,12 @@ export async function GET(req: NextRequest, { params }: { params: { roomId: stri
             `;
           }
         } else if (room.player2_handle === handle) {
-          if (moves !== null && serializedBoard !== null) {
+          if (
+            (room.player2_freeze_until && new Date(room.player2_freeze_until).getTime() > Date.now()) ||
+            (room.player2_pending_spell_until && new Date(room.player2_pending_spell_until).getTime() > Date.now())
+          ) {
+            // Frozen/pending target: movement updates are blocked.
+          } else if (moves !== null && serializedBoard !== null) {
             await sql`
               UPDATE battles
               SET player2_moves = ${moves}, player2_board = ${serializedBoard}
@@ -84,5 +106,7 @@ export async function GET(req: NextRequest, { params }: { params: { roomId: stri
 
   const rows = await sql`SELECT * FROM battles WHERE id = ${params.roomId}`;
   if (rows.length === 0) return NextResponse.json({ error: "Room not found" }, { status: 404 });
-  return NextResponse.json({ room: rows[0] });
+  const room = rows[0] as BattleRow;
+  const items = await getBattleInventories(room);
+  return NextResponse.json({ room, items });
 }

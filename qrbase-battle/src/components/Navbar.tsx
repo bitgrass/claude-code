@@ -2,8 +2,9 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { FarcasterAuthButton } from "./FarcasterAuth";
+import { useTheme } from "@/contexts/ThemeContext";
 import Image from "next/image";
 
 function XIcon() {
@@ -24,23 +25,28 @@ function FarcasterIcon() {
   );
 }
 
+function getPrimaryWalletAddress(user: any): string | null {
+  const linkedAccounts = Array.isArray(user?.linkedAccounts) ? user.linkedAccounts : [];
+  const embedded = linkedAccounts.find(
+    (a: any) => a?.type === "wallet" && a?.walletClientType === "privy" && a?.chainType === "ethereum"
+  );
+  const anyEthWallet = linkedAccounts.find((a: any) => a?.type === "wallet" && a?.chainType === "ethereum");
+  const anyWallet = linkedAccounts.find((a: any) => a?.type === "wallet");
+  return embedded?.address ?? anyEthWallet?.address ?? anyWallet?.address ?? user?.wallet?.address ?? null;
+}
+
 export function Navbar() {
+  const router = useRouter();
   const { authenticated, user, login, logout } = usePrivy();
   const { identity, setIdentity, disconnect } = useAuth();
+  const { theme, toggleTheme, mounted } = useTheme();
   const [showAuthMenu, setShowAuthMenu] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (authenticated && user?.twitter?.username) {
-      const walletAddress =
-        (user as any)?.wallet?.address ||
-        (user as any)?.linkedAccounts?.find(
-          (a: { type: string }) => a.type === "wallet"
-        )?.address ||
-        null;
+    if (!authenticated || !user) return;
 
+    const walletAddress = getPrimaryWalletAddress(user);
+    if (user.twitter?.username) {
       setIdentity({
         handle: user.twitter.username,
         platform: "twitter",
@@ -48,11 +54,22 @@ export function Navbar() {
         profilePhoto: user.twitter.profilePictureUrl || null,
         walletAddress,
       });
+      return;
+    }
+
+    if (user.farcaster?.fid) {
+      setIdentity({
+        handle: user.farcaster.username || String(user.farcaster.fid),
+        platform: "farcaster",
+        displayName: user.farcaster.displayName || user.farcaster.username || String(user.farcaster.fid),
+        profilePhoto: user.farcaster.pfp || null,
+        walletAddress,
+      });
     }
   }, [authenticated, user, setIdentity]);
 
   const handleDisconnect = () => {
-    if (identity?.platform === "twitter") logout();
+    logout();
     disconnect();
     setShowAuthMenu(false);
   };
@@ -61,14 +78,14 @@ export function Navbar() {
     <nav
       className="sticky top-0 z-50 flex items-center px-6 gap-4"
       style={{
-        background: "#080c1a",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        background: "var(--panel-bg)",
+        borderBottom: "1px solid var(--border-soft)",
         height: "56px",
       }}
     >
       {/* Logo */}
       <div className="flex items-center gap-2 flex-1">
-        <Image src="/logo.svg" alt="QRbase" width={120} height={32} className="h-8 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+        <Image src="/logo.svg" alt="QRbase" width={120} height={32} className="h-8 w-auto" style={{ filter: "var(--logo-filter)" }} />
         <span
           className="px-2 py-0.5 rounded text-[10px] font-black tracking-widest uppercase"
           style={{
@@ -80,6 +97,38 @@ export function Navbar() {
         </span>
       </div>
 
+      <button
+        onClick={() => router.push("/store")}
+        className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide"
+        style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.45)", color: "var(--text-main)" }}
+      >
+        Store
+      </button>
+
+      <button
+        onClick={toggleTheme}
+        className="flex items-center gap-2 px-2 py-1 rounded-full"
+        aria-label="Toggle theme"
+        title="Toggle theme"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border-strong)", color: "var(--text-main)" }}
+      >
+        <span className="text-[10px] font-black uppercase tracking-wide">
+          {mounted ? (theme === "dark" ? "Dark" : "Light") : "Theme"}
+        </span>
+        <span
+          className="relative inline-flex h-5 w-10 rounded-full transition-colors"
+          style={{ background: theme === "dark" ? "rgba(59,130,246,0.35)" : "rgba(139,92,246,0.35)" }}
+        >
+          <span
+            className="absolute top-[2px] left-[2px] h-4 w-4 rounded-full transition-transform"
+            style={{
+              background: "#fff",
+              transform: theme === "dark" ? "translateX(0)" : "translateX(20px)",
+            }}
+          />
+        </span>
+      </button>
+
       {/* Auth */}
       <div className="relative">
         {identity ? (
@@ -87,8 +136,8 @@ export function Navbar() {
             onClick={() => setShowAuthMenu((v) => !v)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all"
             style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border-soft)",
             }}
           >
             {identity.profilePhoto ? (
@@ -98,62 +147,60 @@ export function Navbar() {
                 width={26}
                 height={26}
                 className="rounded-full"
-                style={{ border: "2px solid rgba(255,255,255,0.15)" }}
+                style={{ border: "2px solid rgba(var(--fg-rgb),0.15)" }}
               />
             ) : (
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black"
-                style={{ background: "#6366f1" }}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
+                style={{ background: "#6366f1", color: "#fff" }}
               >
                 {identity.handle[0].toUpperCase()}
               </div>
             )}
             <div className="flex flex-col items-start leading-tight">
-              <span className="text-xs font-bold text-white">@{identity.handle}</span>
-              <span className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <span className="text-xs font-bold">@{identity.handle}</span>
+              <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
                 {identity.platform === "twitter" ? <><XIcon /> Twitter</> : <><FarcasterIcon /> Farcaster</>}
               </span>
             </div>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>▾</span>
+            <span style={{ color: "var(--text-dim)", fontSize: 10 }}>v</span>
           </button>
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={login}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white transition-all"
-              style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-              }}
-            >
-              <XIcon />
-              Sign in
-            </button>
-            {mounted && <FarcasterAuthButton onClose={() => {}} />}
-          </div>
+          <button
+            onClick={login}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all"
+            style={{
+              background: "var(--surface-3)",
+              border: "1px solid var(--border-strong)",
+              color: "var(--text-main)",
+            }}
+          >
+            <XIcon />
+            Sign in
+          </button>
         )}
 
         {showAuthMenu && identity && (
           <div
             className="absolute right-0 mt-2 w-56 rounded-2xl overflow-hidden"
             style={{
-              background: "#0d1129",
-              border: "1px solid rgba(255,255,255,0.1)",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+              background: "var(--panel-bg)",
+              border: "1px solid var(--border-strong)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
             }}
           >
             <div
               className="px-4 py-3"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.03)" }}
+              style={{ borderBottom: "1px solid var(--border-soft)", background: "var(--surface-1)" }}
             >
-              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>gm,</p>
-              <p className="font-black text-sm text-white">@{identity.handle} 👋</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>gm,</p>
+              <p className="font-black text-sm">@{identity.handle}</p>
               {identity.walletAddress ? (
-                <p className="text-[10px] font-mono mt-1 truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  🔗 {identity.walletAddress.slice(0, 6)}…{identity.walletAddress.slice(-4)}
+                <p className="text-[10px] font-mono mt-1 truncate" style={{ color: "var(--text-dim)" }}>
+                  Wallet {identity.walletAddress.slice(0, 6)}...{identity.walletAddress.slice(-4)}
                 </p>
               ) : (
-                <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>⚠️ No wallet linked</p>
+                <p className="text-[10px] mt-1" style={{ color: "var(--text-dim)" }}>No wallet linked</p>
               )}
             </div>
             <button
@@ -163,7 +210,7 @@ export function Navbar() {
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.08)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
-              👋 Disconnect
+              Disconnect
             </button>
           </div>
         )}

@@ -12,10 +12,10 @@ const BATTLE_MS = 2 * 60 * 1000;
 const DEFAULT_PUZZLE_GRADIENT: [string, string] = ["#64748b", "#9ca3af"];
 
 const D = {
-  bg: "#050714",
-  card: "rgba(255,255,255,0.03)",
-  border: "rgba(255,255,255,0.08)",
-  muted: "rgba(255,255,255,0.4)",
+  bg: "var(--app-bg)",
+  card: "rgba(var(--fg-rgb),0.03)",
+  border: "rgba(var(--fg-rgb),0.08)",
+  muted: "rgba(var(--fg-rgb),0.4)",
 };
 
 function PlayerCard({
@@ -171,7 +171,7 @@ function WatchPageInner() {
     <div className="min-h-screen flex flex-col" style={{ background: D.bg }}>
       <div
         className="flex items-center justify-between px-6 py-3"
-        style={{ background: "#080c1a", borderBottom: `1px solid ${D.border}` }}
+        style={{ background: "var(--panel-bg)", borderBottom: `1px solid ${D.border}` }}
       >
         <button onClick={() => router.push("/")} className="text-sm font-bold transition-colors" style={{ color: D.muted }}>
           Back
@@ -257,7 +257,7 @@ export default function WatchPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "#050714" }}>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--app-bg)" }}>
           <div className="flex gap-2">
             {[0, 1, 2].map((i) => (
               <span key={i} className="w-3 h-3 rounded-full animate-bounce" style={{ background: "#6366f1", animationDelay: `${i * 0.15}s` }} />
@@ -270,3 +270,4 @@ export default function WatchPage() {
     </Suspense>
   );
 }
+

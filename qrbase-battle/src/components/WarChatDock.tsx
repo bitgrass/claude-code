@@ -22,9 +22,9 @@ type ChatMessage = {
 
 const POLL_MS = 1000;
 const TEAM_ICON: Record<Team, string> = {
-  red: "🔴",
-  blue: "🔵",
-  green: "🟢",
+  red: "R",
+  blue: "B",
+  green: "G",
 };
 
 function formatClock(dateString: string): string {
@@ -188,9 +188,9 @@ export function WarChatDock() {
         onClick={() => setMinimized(false)}
         className="fixed bottom-4 right-4 z-50 px-4 py-2 rounded-xl text-sm font-bold text-white"
         style={{
-          background: "rgba(8,12,26,0.92)",
-          border: "1px solid rgba(255,255,255,0.18)",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+          background: "var(--panel-bg)",
+          border: "1px solid var(--border-strong)",
+          boxShadow: "var(--chat-shadow)",
         }}
       >
         Live Chat
@@ -202,26 +202,26 @@ export function WarChatDock() {
     <div
       className="fixed bottom-4 right-4 z-50 w-[340px] h-[430px] rounded-2xl overflow-hidden flex flex-col"
       style={{
-        background: "rgba(8,12,26,0.96)",
-        border: "1px solid rgba(255,255,255,0.12)",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+        background: "var(--panel-bg)",
+        border: "1px solid var(--border-strong)",
+        boxShadow: "var(--chat-shadow)",
         backdropFilter: "blur(6px)",
       }}
     >
       <div
         className="px-3 py-2 flex items-center justify-between"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+        style={{ borderBottom: "1px solid rgba(var(--fg-rgb),0.08)" }}
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-black uppercase tracking-wider text-white">Live Chat</span>
-          <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>
+          <span className="text-[10px]" style={{ color: "rgba(var(--fg-rgb),0.5)" }}>
             {channelLabel}
           </span>
         </div>
         <button
           onClick={() => setMinimized(true)}
           className="text-xs px-2 py-0.5 rounded"
-          style={{ color: "rgba(255,255,255,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}
+          style={{ color: "rgba(var(--fg-rgb),0.65)", border: "1px solid rgba(var(--fg-rgb),0.15)" }}
         >
           Minimize
         </button>
@@ -232,9 +232,9 @@ export function WarChatDock() {
           onClick={() => setChannel("global")}
           className="flex-1 text-xs font-bold py-1.5 rounded-lg"
           style={{
-            background: channel === "global" ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${channel === "global" ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.08)"}`,
-            color: channel === "global" ? "#93C5FD" : "rgba(255,255,255,0.7)",
+            background: channel === "global" ? "rgba(59,130,246,0.2)" : "rgba(var(--fg-rgb),0.04)",
+            border: `1px solid ${channel === "global" ? "rgba(59,130,246,0.45)" : "rgba(var(--fg-rgb),0.08)"}`,
+            color: channel === "global" ? "#93C5FD" : "rgba(var(--fg-rgb),0.7)",
           }}
         >
           Global
@@ -244,9 +244,9 @@ export function WarChatDock() {
           className="flex-1 text-xs font-bold py-1.5 rounded-lg"
           disabled={!canUseTeamChannel}
           style={{
-            background: channel === "team" ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${channel === "team" ? "rgba(16,185,129,0.45)" : "rgba(255,255,255,0.08)"}`,
-            color: channel === "team" ? "#6EE7B7" : "rgba(255,255,255,0.7)",
+            background: channel === "team" ? "rgba(16,185,129,0.2)" : "rgba(var(--fg-rgb),0.04)",
+            border: `1px solid ${channel === "team" ? "rgba(16,185,129,0.45)" : "rgba(var(--fg-rgb),0.08)"}`,
+            color: channel === "team" ? "#6EE7B7" : "rgba(var(--fg-rgb),0.7)",
             opacity: canUseTeamChannel ? 1 : 0.5,
             cursor: canUseTeamChannel ? "pointer" : "not-allowed",
           }}
@@ -258,15 +258,15 @@ export function WarChatDock() {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
         {loading ? (
-          <p className="text-xs text-center pt-3" style={{ color: "rgba(255,255,255,0.5)" }}>
+          <p className="text-xs text-center pt-3" style={{ color: "rgba(var(--fg-rgb),0.5)" }}>
             Loading chat...
           </p>
         ) : channel === "team" && !activeTeam ? (
-          <p className="text-xs text-center pt-3" style={{ color: "rgba(255,255,255,0.55)" }}>
+          <p className="text-xs text-center pt-3" style={{ color: "rgba(var(--fg-rgb),0.55)" }}>
             Join a team first to open team chat.
           </p>
         ) : messages.length === 0 ? (
-          <p className="text-xs text-center pt-3" style={{ color: "rgba(255,255,255,0.5)" }}>
+          <p className="text-xs text-center pt-3" style={{ color: "rgba(var(--fg-rgb),0.5)" }}>
             No messages yet.
           </p>
         ) : (
@@ -274,7 +274,7 @@ export function WarChatDock() {
             <div
               key={m.id}
               className="rounded-lg px-2 py-1.5"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+              style={{ background: "rgba(var(--fg-rgb),0.04)", border: "1px solid rgba(var(--fg-rgb),0.06)" }}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -283,12 +283,12 @@ export function WarChatDock() {
                       src={m.photo}
                       alt={m.handle}
                       className="w-5 h-5 rounded-full shrink-0"
-                      style={{ border: "1px solid rgba(255,255,255,0.18)" }}
+                      style={{ border: "1px solid rgba(var(--fg-rgb),0.18)" }}
                     />
                   ) : (
                     <div
                       className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-black text-white"
-                      style={{ background: "rgba(255,255,255,0.25)" }}
+                      style={{ background: "rgba(var(--fg-rgb),0.25)" }}
                     >
                       {m.handle[0]?.toUpperCase() ?? "?"}
                     </div>
@@ -310,11 +310,11 @@ export function WarChatDock() {
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] shrink-0" style={{ color: "rgba(255,255,255,0.45)" }}>
+                <span className="text-[10px] shrink-0" style={{ color: "rgba(var(--fg-rgb),0.45)" }}>
                   {formatClock(m.created_at)}
                 </span>
               </div>
-              <p className="text-xs leading-snug break-words" style={{ color: "rgba(255,255,255,0.9)" }}>
+              <p className="text-xs leading-snug break-words" style={{ color: "rgba(var(--fg-rgb),0.9)" }}>
                 {m.message}
               </p>
             </div>
@@ -322,18 +322,18 @@ export function WarChatDock() {
         )}
       </div>
 
-      <div className="p-2" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="p-2" style={{ borderTop: "1px solid rgba(var(--fg-rgb),0.08)" }}>
         {error && (
           <p className="text-[11px] mb-1" style={{ color: "#FCA5A5" }}>
             {error}
           </p>
         )}
         {!identity ? (
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
+          <p className="text-xs" style={{ color: "rgba(var(--fg-rgb),0.55)" }}>
             Sign in to send messages.
           </p>
         ) : channel === "team" && !activeTeam ? (
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
+          <p className="text-xs" style={{ color: "rgba(var(--fg-rgb),0.55)" }}>
             Join a team to send team messages.
           </p>
         ) : (
@@ -350,9 +350,9 @@ export function WarChatDock() {
               placeholder={channel === "global" ? "Message all war users..." : "Message your team..."}
               className="flex-1 px-2.5 py-2 rounded-lg text-sm outline-none"
               style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#fff",
+                background: "rgba(var(--fg-rgb),0.06)",
+                border: "1px solid var(--border-strong)",
+                color: "var(--text-main)",
               }}
               maxLength={280}
             />
@@ -372,3 +372,4 @@ export function WarChatDock() {
     </div>
   );
 }
+

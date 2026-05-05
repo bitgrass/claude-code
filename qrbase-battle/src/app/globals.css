@@ -4,9 +4,72 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
 
+:root {
+  --app-bg: #050714;
+  --panel-bg: #080c1a;
+  --surface-1: rgba(255, 255, 255, 0.03);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-main: #f8fafc;
+  --text-muted: rgba(255, 255, 255, 0.58);
+  --text-dim: rgba(255, 255, 255, 0.42);
+  --fg-rgb: 255, 255, 255;
+  --logo-filter: brightness(0) invert(1);
+  --chat-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  --qr-outer-bg: #030716;
+  --qr-panel-bg: #01051f;
+  --qr-panel-stroke-1: #132865;
+  --qr-panel-stroke-2: #0a123a;
+  --qr-finder-outer: #7a8398;
+  --qr-finder-inner: #9aa2b3;
+  --qr-shell-shadow: 0 0 62px rgba(52, 106, 255, 0.2), 0 0 130px rgba(30, 77, 195, 0.12);
+  --qr-water-blend: screen;
+  --qr-water-opacity: 0.34;
+}
+
+html[data-theme="light"] {
+  --app-bg: #f3f8ff;
+  --panel-bg: #ffffff;
+  --surface-1: rgba(15, 23, 42, 0.04);
+  --surface-2: rgba(15, 23, 42, 0.06);
+  --surface-3: rgba(15, 23, 42, 0.1);
+  --border-soft: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --text-main: #0f172a;
+  --text-muted: rgba(15, 23, 42, 0.7);
+  --text-dim: rgba(15, 23, 42, 0.5);
+  --fg-rgb: 15, 23, 42;
+  --logo-filter: none;
+  --chat-shadow: 0 16px 42px rgba(15, 23, 42, 0.2);
+  --qr-outer-bg: #edf4ff;
+  --qr-panel-bg: #f8fbff;
+  --qr-panel-stroke-1: #9cb6ea;
+  --qr-panel-stroke-2: #c9d8f6;
+  --qr-finder-outer: #9eaecb;
+  --qr-finder-inner: #c6d2e9;
+  --qr-shell-shadow: 0 0 40px rgba(59, 130, 246, 0.16), 0 0 90px rgba(139, 92, 246, 0.12);
+  --qr-water-blend: multiply;
+  --qr-water-opacity: 0.2;
+}
+
 body {
-  background-color: #050714;
-  color: #ffffff;
+  background-color: var(--app-bg);
+  color: var(--text-main);
+  transition: background-color 240ms ease, color 240ms ease;
+}
+
+.text-white {
+  color: var(--text-main);
+}
+
+.text-theme-muted {
+  color: var(--text-muted);
+}
+
+.text-theme-dim {
+  color: var(--text-dim);
 }
 
 @keyframes marquee {
@@ -22,3 +85,71 @@ body {
 .qr-breathe {
   animation: pulse-breathe 3s ease-in-out infinite;
 }
+
+@keyframes qr-ocean-tilt {
+  0%, 100% { transform: rotateX(7deg) rotateY(-8deg) scale(1); }
+  50% { transform: rotateX(-5deg) rotateY(8deg) scale(1.01); }
+}
+
+@keyframes qr-water-flow {
+  0%, 100% {
+    background-position: 45% 50%, 15% 30%, 80% 70%;
+  }
+  50% {
+    background-position: 58% 46%, 78% 24%, 24% 80%;
+  }
+}
+
+@keyframes qr-glass-shimmer {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.3; }
+}
+
+.qr-ocean-stage {
+  perspective: 1400px;
+}
+
+.qr-ocean-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(var(--fg-rgb), 0.08);
+  box-shadow: var(--qr-shell-shadow);
+  transform-style: preserve-3d;
+  animation: qr-ocean-tilt 11s ease-in-out infinite;
+}
+
+.qr-ocean-shell > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: translateZ(18px);
+}
+
+.qr-water-layer {
+  position: absolute;
+  inset: -8%;
+  pointer-events: none;
+  transform: translateZ(26px);
+  mix-blend-mode: var(--qr-water-blend);
+  opacity: var(--qr-water-opacity);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(83, 210, 255, 0.24), rgba(0, 0, 0, 0) 58%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(103, 200, 255, 0.2) 0 3px, rgba(0, 0, 0, 0) 4px 12px),
+    conic-gradient(from 0deg at 50% 50%, rgba(24, 94, 255, 0.08), rgba(95, 255, 221, 0.14), rgba(24, 94, 255, 0.08));
+  background-size: 140% 140%, 128% 128%, 170% 170%;
+  animation: qr-water-flow 16s ease-in-out infinite;
+}
+
+.qr-glass-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateZ(30px);
+  border-radius: inherit;
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 30%, rgba(255, 255, 255, 0) 65%);
+  animation: qr-glass-shimmer 8s ease-in-out infinite;
+}
+

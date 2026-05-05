@@ -78,47 +78,14 @@ const RAW_DOTS: Array<{ cx: number; cy: number }> = [
   ...([322.5,376.5,403.5,457.5,511.5,646.5,673.5,700.5,727.5,754.5,781.5,862.5,943.5].map(cy => ({ cx: 943.5, cy }))),
 ];
 
-// Sort by diagonal (cx+cy) for sweep effect
+// Stable ordering
 const SORTED_DOTS = [...RAW_DOTS].sort((a, b) => (a.cx + a.cy) - (b.cx + b.cy));
 
-const TEAM_COLORS = {
-  red: "#EF4444",
-  blue: "#3B82F6",
-  green: "#10B981",
-};
+const FINDER_COLOR = "var(--qr-finder-outer)";
+const FINDER_INNER_COLOR = "var(--qr-finder-inner)";
+const PANEL_BG = "var(--qr-panel-bg)";
 
-export function QRWarDisplay({ redPR, bluePR, greenPR }: QRWarDisplayProps) {
-  const total = redPR + bluePR + greenPR;
-  const n = SORTED_DOTS.length;
-
-  let redCount: number, blueCount: number, greenCount: number;
-
-  if (total === 0) {
-    // Even distribution
-    redCount = Math.floor(n / 3);
-    blueCount = Math.floor(n / 3);
-    greenCount = n - redCount - blueCount;
-  } else {
-    redCount = Math.round((redPR / total) * n);
-    blueCount = Math.round((bluePR / total) * n);
-    greenCount = n - redCount - blueCount;
-    if (greenCount < 0) {
-      greenCount = 0;
-      blueCount = n - redCount;
-    }
-  }
-
-  const redDots = SORTED_DOTS.slice(0, redCount);
-  const blueDots = SORTED_DOTS.slice(redCount, redCount + blueCount);
-  const greenDots = SORTED_DOTS.slice(redCount + blueCount);
-
-  // Determine top team color for finder patterns
-  let topColor = "#6366f1";
-  if (total > 0) {
-    if (redPR >= bluePR && redPR >= greenPR) topColor = TEAM_COLORS.red;
-    else if (bluePR >= redPR && bluePR >= greenPR) topColor = TEAM_COLORS.blue;
-    else topColor = TEAM_COLORS.green;
-  }
+export function QRWarDisplay({ redPR: _redPR, bluePR: _bluePR, greenPR: _greenPR }: QRWarDisplayProps) {
 
   // Finder pattern positions
   const finderPositions = [
@@ -134,74 +101,80 @@ export function QRWarDisplay({ redPR, bluePR, greenPR }: QRWarDisplayProps) {
       style={{ width: "100%", height: "100%" }}
     >
       <defs>
-        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-          <feComposite in="SourceGraphic" in2="coloredBlur" operator="over" />
+        <filter id="panelGlow" x="-25%" y="-25%" width="150%" height="150%">
+          <feDropShadow dx="0" dy="0" stdDeviation="18" floodColor="#1f3da6" floodOpacity="0.36" />
         </filter>
+
+        <filter id="dotAura" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2.6" />
+        </filter>
+
+        {/* Full QR palette: blue -> purple -> green */}
+        <radialGradient id="fullQrSpectrum" gradientUnits="userSpaceOnUse" cx="512" cy="512" r="520">
+          <stop offset="0%" stopColor="#60A5FA" />
+          <stop offset="48%" stopColor="#8B5CF6" />
+          <stop offset="100%" stopColor="#10B981" />
+        </radialGradient>
       </defs>
 
-      {/* Dark background */}
-      <rect width="1024" height="1024" fill="#050714" />
+      <rect width="1024" height="1024" fill="var(--qr-outer-bg)" />
+      <rect x="22" y="22" width="980" height="980" rx="32" fill={PANEL_BG} filter="url(#panelGlow)" />
+      <rect x="22" y="22" width="980" height="980" rx="32" fill="none" stroke="var(--qr-panel-stroke-1)" strokeOpacity="0.56" strokeWidth="2" />
+      <rect x="22" y="22" width="980" height="980" rx="32" fill="none" stroke="var(--qr-panel-stroke-2)" strokeOpacity="0.92" strokeWidth="1" />
 
-      {/* Red team dots */}
-      <g fill={TEAM_COLORS.red} filter="url(#glow)">
-        {redDots.map((d, i) => {
-          const delay = ((d.cx + d.cy) / 1900 * 2.4).toFixed(2);
+      <g>
+        {SORTED_DOTS.map((d, i) => {
+          const dx = d.cx - 512;
+          const dy = d.cy - 512;
+          const dist = Math.hypot(dx, dy);
+          const keepGray = dist > 392 && ((i + Math.floor(dist)) % 3 !== 0);
+          const fillColor = keepGray ? "rgba(130,141,162,0.42)" : "url(#fullQrSpectrum)";
+          const coreColor = keepGray ? "rgba(151,160,176,0.72)" : "url(#fullQrSpectrum)";
+          const strokeColor = keepGray ? "rgba(170,178,192,0.52)" : "rgba(33,232,166,0.88)";
           return (
-            <circle key={`r-${i}`} cx={d.cx} cy={d.cy} r={13.5}>
-              <animate attributeName="opacity" values="1;0.45;1" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-              <animate attributeName="r" values="13.5;11.5;13.5" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-            </circle>
+            <g key={`dot-${i}`}>
+              <circle cx={d.cx} cy={d.cy} r={13.8} fill={fillColor} opacity={keepGray ? 0.2 : 0.38} filter="url(#dotAura)" />
+              <circle cx={d.cx} cy={d.cy} r={8.8} fill={coreColor} stroke={strokeColor} strokeWidth="1.8" />
+            </g>
           );
         })}
       </g>
 
-      {/* Blue team dots */}
-      <g fill={TEAM_COLORS.blue} filter="url(#glow)">
-        {blueDots.map((d, i) => {
-          const delay = ((d.cx + d.cy) / 1900 * 2.4).toFixed(2);
-          return (
-            <circle key={`b-${i}`} cx={d.cx} cy={d.cy} r={13.5}>
-              <animate attributeName="opacity" values="1;0.45;1" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-              <animate attributeName="r" values="13.5;11.5;13.5" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-            </circle>
-          );
-        })}
-      </g>
-
-      {/* Green team dots */}
-      <g fill={TEAM_COLORS.green} filter="url(#glow)">
-        {greenDots.map((d, i) => {
-          const delay = ((d.cx + d.cy) / 1900 * 2.4).toFixed(2);
-          return (
-            <circle key={`g-${i}`} cx={d.cx} cy={d.cy} r={13.5}>
-              <animate attributeName="opacity" values="1;0.45;1" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-              <animate attributeName="r" values="13.5;11.5;13.5" dur="2.4s" begin={`${delay}s`} repeatCount="indefinite" />
-            </circle>
-          );
-        })}
+      <g fill="none" stroke="url(#fullQrSpectrum)" strokeWidth="2.4" strokeOpacity="0.38">
+        {[0, 1, 2].map((waveIndex) => (
+          <circle key={`wave-${waveIndex}`} cx="512" cy="512" r={130 + waveIndex * 85}>
+            <animate attributeName="r" values={`${120 + waveIndex * 85};${360 + waveIndex * 90}`} dur="4.2s" begin={`${waveIndex * 0.7}s`} repeatCount="indefinite" />
+            <animate attributeName="stroke-opacity" values="0.55;0" dur="4.2s" begin={`${waveIndex * 0.7}s`} repeatCount="indefinite" />
+          </circle>
+        ))}
       </g>
 
       {/* Finder patterns */}
       {finderPositions.map(({ X, Y }, i) => (
         <g key={`finder-${i}`}>
           <rect
-            x={X + 12}
-            y={Y + 12}
-            width={165}
-            height={165}
-            rx={48}
-            fill="none"
-            stroke={topColor}
-            strokeWidth={23}
+            x={X}
+            y={Y}
+            width={190}
+            height={190}
+            rx={52}
+            fill={FINDER_COLOR}
           />
           <rect
-            x={X + 54}
-            y={Y + 54}
-            width={81}
-            height={81}
-            rx={10}
-            fill={topColor}
+            x={X + 34}
+            y={Y + 34}
+            width={122}
+            height={122}
+            rx={34}
+            fill={PANEL_BG}
+          />
+          <rect
+            x={X + 57}
+            y={Y + 57}
+            width={76}
+            height={76}
+            rx={12}
+            fill={FINDER_INNER_COLOR}
           />
         </g>
       ))}
@@ -211,10 +184,10 @@ export function QRWarDisplay({ redPR, bluePR, greenPR }: QRWarDisplayProps) {
         x="512"
         y="985"
         textAnchor="middle"
-        fill="#ffffff20"
-        fontSize="18"
+        fill="rgba(62, 90, 152, 0.58)"
+        fontSize="20"
         fontFamily="monospace"
-        letterSpacing="8"
+        letterSpacing="10"
       >
         QR-WAR
       </text>
