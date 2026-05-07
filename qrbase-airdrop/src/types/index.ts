@@ -1,7 +1,12 @@
 export interface EligibilityRule {
-  type: "puzzle_wins" | "token_balance" | "min_level" | "min_wins" | "min_winrate";
+  type: "puzzle_wins" | "token_balance" | "min_level" | "min_wins" | "min_winrate" | "social_task";
   token?: string;        // display symbol, e.g. "SCAN" or "PARTNER"
   tokenAddress?: string; // on-chain CA used for token_balance checks
+  taskId?: string;
+  label?: string;
+  url?: string;
+  platform?: string;
+  verificationUrl?: string;
   min: number;
 }
 
@@ -44,6 +49,8 @@ export interface EligibilityCheck {
   passed: boolean;
   current: number | string;
   required: number | string;
+  actionUrl?: string;
+  actionLabel?: string;
 }
 
 export interface EligibilityResponse {

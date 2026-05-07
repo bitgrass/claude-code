@@ -96,19 +96,23 @@ export async function POST(
       if (neynarWallet) balanceWallet = neynarWallet;
     }
 
-    // Check cached result
+    const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
+    const hasSocialTasks = rules.some((rule) => rule.type === "social_task");
+
+    // Check cached result. Social task completion can change immediately.
     const cacheKey = `eligibility:${params.id}:${twitterId}:${balanceWallet}`;
-    const cached = await cacheGet<{
-      eligible: boolean;
-      checks: unknown[];
-    }>(cacheKey);
+    const cached = hasSocialTasks
+      ? null
+      : await cacheGet<{
+          eligible: boolean;
+          checks: unknown[];
+        }>(cacheKey);
 
     let eligibilityResult;
     if (cached) {
       eligibilityResult = cached;
     } else {
       // Evaluate rules — use Privy wallet for token balance check
-      const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
       // For Farcaster, QRbase API expects FID (e.g. fc:1005896), not username
       const gameStatusHandle = platform === "farcaster" ? twitterId : twitterHandle;
       eligibilityResult = await evaluateEligibility(
@@ -117,7 +121,7 @@ export async function POST(
         balanceWallet,
         platform
       );
-      await cacheSet(cacheKey, eligibilityResult, 60);
+      if (!hasSocialTasks) await cacheSet(cacheKey, eligibilityResult, 60);
     }
 
     if (!eligibilityResult.eligible) {

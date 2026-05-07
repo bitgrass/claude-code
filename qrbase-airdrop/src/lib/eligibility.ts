@@ -1,6 +1,98 @@
 import type { EligibilityRule, EligibilityCheck } from "@/types";
 import { getGameStatus } from "./qrbase-api";
 
+type SocialTaskVerifyResponse = {
+  passed?: boolean;
+  completed?: boolean;
+  eligible?: boolean;
+  current?: number | string;
+  required?: number | string;
+  label?: string;
+};
+
+async function verifySocialTask(
+  rule: EligibilityRule,
+  userHandle: string,
+  walletAddress: string,
+  platform: "twitter" | "farcaster"
+): Promise<EligibilityCheck> {
+  const label = rule.label || rule.taskId || "Social Task";
+  const verifierUrl =
+    rule.verificationUrl ||
+    process.env.SOCIAL_TASK_VERIFY_URL ||
+    process.env.SOCIAL_TASKS_VERIFY_URL ||
+    "";
+
+  if (!verifierUrl || !rule.taskId) {
+    return {
+      rule: label,
+      passed: false,
+      current: 0,
+      required: rule.min || 1,
+      actionUrl: rule.url,
+      actionLabel: rule.url ? "Go \u2192" : undefined,
+    };
+  }
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    const secret = process.env.SOCIAL_TASK_VERIFY_SECRET;
+    if (secret) headers.Authorization = `Bearer ${secret}`;
+
+    const res = await fetch(verifierUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        taskId: rule.taskId,
+        userId: userHandle,
+        userHandle,
+        walletAddress,
+        platform,
+        taskPlatform: rule.platform,
+        rule,
+      }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return {
+        rule: label,
+        passed: false,
+        current: 0,
+        required: rule.min || 1,
+        actionUrl: rule.url,
+        actionLabel: rule.url ? "Go \u2192" : undefined,
+      };
+    }
+
+    const data = await res.json() as SocialTaskVerifyResponse | boolean;
+    const passed = typeof data === "boolean"
+      ? data
+      : Boolean(data.passed ?? data.completed ?? data.eligible);
+
+    return {
+      rule: typeof data === "boolean" ? label : data.label || label,
+      passed,
+      current: typeof data === "boolean" ? (passed ? (rule.min || 1) : 0) : data.current ?? (passed ? (rule.min || 1) : 0),
+      required: typeof data === "boolean" ? (rule.min || 1) : data.required ?? (rule.min || 1),
+      actionUrl: rule.url,
+      actionLabel: rule.url ? "Go \u2192" : undefined,
+    };
+  } catch (err) {
+    console.error("verifySocialTask error:", err);
+    return {
+      rule: label,
+      passed: false,
+      current: 0,
+      required: rule.min || 1,
+      actionUrl: rule.url,
+      actionLabel: rule.url ? "Go \u2192" : undefined,
+    };
+  }
+}
+
 export async function evaluateEligibility(
   rules: EligibilityRule[],
   userHandle: string,
@@ -81,6 +173,10 @@ export async function evaluateEligibility(
         current: Math.floor(balanceInTokens),
         required: rule.min,
       });
+    } else if (rule.type === "social_task") {
+      const check = await verifySocialTask(rule, userHandle, walletAddress, platform);
+      if (!check.passed) allPassed = false;
+      checks.push(check);
     }
   }
 

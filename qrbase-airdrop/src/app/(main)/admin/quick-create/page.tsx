@@ -34,7 +34,8 @@ export default function QuickCreatePage() {
     totalUsdc: "",
     maxRecipients: "10",
     minPuzzleWins: "20",
-    minScanBalance: "100000",
+    minLevel: "0",
+    minScanBalance: "0",
     partnerTokenAddress: "",
     partnerTokenSymbol: "",
     partnerTokenMin: "",
@@ -89,6 +90,7 @@ export default function QuickCreatePage() {
           totalUsdc: parseFloat(form.totalUsdc),
           maxRecipients: parseInt(form.maxRecipients),
           minPuzzleWins: parseInt(form.minPuzzleWins) || 0,
+          minLevel: parseInt(form.minLevel) || 0,
           minScanBalance: parseInt(form.minScanBalance) || 0,
           partnerTokenAddress: form.partnerTokenAddress || undefined,
           partnerTokenSymbol: form.partnerTokenSymbol || undefined,
@@ -233,7 +235,7 @@ export default function QuickCreatePage() {
             {/* Eligibility rules */}
             <div>
               <p className="text-sm font-medium text-gray-700 mb-3">Eligibility Rules</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Min Puzzle Wins</label>
                   <input
@@ -242,6 +244,16 @@ export default function QuickCreatePage() {
                     className="w-full px-4 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-primary text-sm"
                     value={form.minPuzzleWins}
                     onChange={(e) => setForm((f) => ({ ...f, minPuzzleWins: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Min Level</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full px-4 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-primary text-sm"
+                    value={form.minLevel}
+                    onChange={(e) => setForm((f) => ({ ...f, minLevel: e.target.value }))}
                   />
                 </div>
                 <div>
@@ -255,7 +267,7 @@ export default function QuickCreatePage() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted mt-2">Set to 0 to skip that rule. SCAN balance rule is always included.</p>
+              <p className="text-xs text-muted mt-2">Set to 0 to skip the SCAN holder requirement.</p>
             </div>
 
             {/* Partner token rule */}
@@ -380,7 +392,7 @@ export default function QuickCreatePage() {
                 className="w-full"
                 onClick={() => {
                   setResult(null);
-                  setForm({ name: "", totalUsdc: "", maxRecipients: "10", minPuzzleWins: "20", minScanBalance: "100000", partnerTokenAddress: "", partnerTokenSymbol: "", partnerTokenMin: "" });
+                  setForm({ name: "", totalUsdc: "", maxRecipients: "10", minPuzzleWins: "20", minLevel: "0", minScanBalance: "0", partnerTokenAddress: "", partnerTokenSymbol: "", partnerTokenMin: "" });
                 }}
               >
                 Create Another

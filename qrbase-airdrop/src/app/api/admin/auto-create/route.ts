@@ -20,16 +20,18 @@ export async function POST(req: NextRequest) {
     totalUsdc: number;
     maxRecipients: number;
     minPuzzleWins?: number;
-    minScanBalance?: number;           // SCAN token balance rule (always added if > 0)
-    partnerTokenAddress?: string;      // partner's own token CA
-    partnerTokenSymbol?: string;       // partner's token display symbol
-    partnerTokenMin?: number;          // min balance of partner token
+    minScanBalance?: number;
+    minLevel?: number;
+    partnerTokenAddress?: string;
+    partnerTokenSymbol?: string;
+    partnerTokenMin?: number;
   };
 
   const {
     name, totalUsdc, maxRecipients,
     minPuzzleWins = 0,
     minScanBalance = 0,
+    minLevel = 0,
     partnerTokenAddress,
     partnerTokenSymbol,
     partnerTokenMin = 0,
@@ -91,14 +93,18 @@ export async function POST(req: NextRequest) {
     const tiers: RewardTier[] = [{ position: 1, amount: Number(perSlot) }];
 
     const scanAddress = process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
+    const levelRequirement = Math.floor(Number(minLevel));
+
     const eligibilityRules: EligibilityRule[] = [
-      // SCAN rule — always present
-      { type: "token_balance" as const, token: "SCAN", tokenAddress: scanAddress, min: minScanBalance },
-      // Puzzle wins — optional
+      ...(minScanBalance > 0
+        ? [{ type: "token_balance" as const, token: "SCAN", tokenAddress: scanAddress, min: minScanBalance }]
+        : []),
       ...(minPuzzleWins > 0
         ? [{ type: "puzzle_wins" as const, token: "SCAN", min: minPuzzleWins }]
         : []),
-      // Partner token — optional, uses their CA
+      ...(Number.isFinite(levelRequirement) && levelRequirement > 0
+        ? [{ type: "min_level" as const, min: levelRequirement }]
+        : []),
       ...(partnerTokenAddress && partnerTokenMin > 0
         ? [{
             type: "token_balance" as const,

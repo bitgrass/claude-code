@@ -25,6 +25,16 @@ export function EligibilityChecks({ checks }: { checks: EligibilityCheck[] }) {
                 ? `${check.current} / ${check.required} \u2713`
                 : `${check.current} / ${check.required} needed`}
             </p>
+            {check.actionUrl && (
+              <a
+                href={check.actionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+              >
+                {check.actionLabel || "Go \u2192"}
+              </a>
+            )}
           </div>
         </div>
       ))}
