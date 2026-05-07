@@ -20,21 +20,21 @@ export async function POST(req: NextRequest) {
     totalUsdc: number;
     maxRecipients: number;
     minPuzzleWins?: number;
-    minScanBalance?: number;
+    minScanBalanceUsd?: number;
     minLevel?: number;
     partnerTokenAddress?: string;
     partnerTokenSymbol?: string;
-    partnerTokenMin?: number;
+    partnerTokenMinUsd?: number;
   };
 
   const {
     name, totalUsdc, maxRecipients,
     minPuzzleWins = 0,
-    minScanBalance = 0,
+    minScanBalanceUsd = 0,
     minLevel = 0,
     partnerTokenAddress,
     partnerTokenSymbol,
-    partnerTokenMin = 0,
+    partnerTokenMinUsd = 0,
   } = body;
 
   if (!name || !totalUsdc || !maxRecipients) {
@@ -96,8 +96,8 @@ export async function POST(req: NextRequest) {
     const levelRequirement = Math.floor(Number(minLevel));
 
     const eligibilityRules: EligibilityRule[] = [
-      ...(minScanBalance > 0
-        ? [{ type: "token_balance" as const, token: "SCAN", tokenAddress: scanAddress, min: minScanBalance }]
+      ...(minScanBalanceUsd > 0
+        ? [{ type: "token_balance" as const, token: "SCAN", tokenAddress: scanAddress, min: 0, minUsd: minScanBalanceUsd }]
         : []),
       ...(minPuzzleWins > 0
         ? [{ type: "puzzle_wins" as const, token: "SCAN", min: minPuzzleWins }]
@@ -105,12 +105,13 @@ export async function POST(req: NextRequest) {
       ...(Number.isFinite(levelRequirement) && levelRequirement > 0
         ? [{ type: "min_level" as const, min: levelRequirement }]
         : []),
-      ...(partnerTokenAddress && partnerTokenMin > 0
+      ...(partnerTokenAddress && partnerTokenMinUsd > 0
         ? [{
             type: "token_balance" as const,
             token: partnerTokenSymbol || "TOKEN",
             tokenAddress: partnerTokenAddress,
-            min: partnerTokenMin,
+            min: 0,
+            minUsd: partnerTokenMinUsd,
           }]
         : []),
     ];

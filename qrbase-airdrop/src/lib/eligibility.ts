@@ -156,6 +156,7 @@ export async function evaluateEligibility(
       }
       const tokenAddress = rule.tokenAddress || process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
       const moralisKey = process.env.NEXT_PUBLIC_MORALIS_APY_KEY || "";
+
       const moralisRes = await fetch(
         `https://deep-index.moralis.io/api/v2.2/${walletAddress}/erc20?chain=base&token_addresses%5B0%5D=${tokenAddress}`,
         { headers: { accept: "application/json", "X-API-Key": moralisKey } }
@@ -165,14 +166,33 @@ export async function evaluateEligibility(
       const balanceInTokens = tokenData
         ? Number(tokenData.balance ?? "0") / 10 ** Number(tokenData.decimals ?? "18")
         : 0;
-      const passed = balanceInTokens >= rule.min;
-      if (!passed) allPassed = false;
-      checks.push({
-        rule: `$${rule.token} Balance`,
-        passed,
-        current: Math.floor(balanceInTokens),
-        required: rule.min,
-      });
+
+      if (rule.minUsd && rule.minUsd > 0) {
+        const priceRes = await fetch(
+          `https://deep-index.moralis.io/api/v2.2/erc20/${tokenAddress}/price?chain=base`,
+          { headers: { accept: "application/json", "X-API-Key": moralisKey } }
+        );
+        const priceData = await priceRes.json() as { usdPrice?: number };
+        const tokenPriceUsd = priceData?.usdPrice ?? 0;
+        const balanceUsd = balanceInTokens * tokenPriceUsd;
+        const passed = balanceUsd >= rule.minUsd;
+        if (!passed) allPassed = false;
+        checks.push({
+          rule: `$${rule.token} Balance`,
+          passed,
+          current: `$${balanceUsd.toFixed(2)}`,
+          required: `$${rule.minUsd}`,
+        });
+      } else {
+        const passed = balanceInTokens >= rule.min;
+        if (!passed) allPassed = false;
+        checks.push({
+          rule: `$${rule.token} Balance`,
+          passed,
+          current: Math.floor(balanceInTokens),
+          required: rule.min,
+        });
+      }
     } else if (rule.type === "social_task") {
       const check = await verifySocialTask(rule, userHandle, walletAddress, platform);
       if (!check.passed) allPassed = false;

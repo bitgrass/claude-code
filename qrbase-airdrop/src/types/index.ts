@@ -1,13 +1,14 @@
 export interface EligibilityRule {
   type: "puzzle_wins" | "token_balance" | "min_level" | "min_wins" | "min_winrate" | "social_task";
-  token?: string;        // display symbol, e.g. "SCAN" or "PARTNER"
-  tokenAddress?: string; // on-chain CA used for token_balance checks
+  token?: string;
+  tokenAddress?: string;
   taskId?: string;
   label?: string;
   url?: string;
   platform?: string;
   verificationUrl?: string;
   min: number;
+  minUsd?: number; // when set, min is ignored for token_balance — check USD value instead
 }
 
 export interface RewardTier {
