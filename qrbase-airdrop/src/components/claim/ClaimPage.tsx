@@ -10,7 +10,9 @@ import { ClaimSuccess } from "./ClaimSuccess";
 import { RecentClaimantsList } from "./RecentClaimantsList";
 import { useClaimFlow } from "@/hooks/useClaimFlow";
 import { useCampaignStatus } from "@/hooks/useCampaignStatus";
-import type { CampaignData } from "@/types";
+import { CampaignScanProgress } from "@/components/admin/CampaignScanProgress";
+import type { ScanProgress } from "@/components/admin/CampaignScanProgress";
+import type { CampaignData, EligibilityRule } from "@/types";
 
 function formatUsdc(amount: string): string {
   return `$${(Number(amount) / 1e6).toLocaleString()}`;
@@ -25,6 +27,7 @@ export function ClaimPage({
 }) {
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const { status, refetch: refetchStatus } = useCampaignStatus(campaignId);
 
   useEffect(() => {
@@ -45,6 +48,7 @@ export function ClaimPage({
     login,
     submitClaim,
     recipientWallet,
+    twitterHandle,
   } = useClaimFlow(campaign, platform);
 
   // Refresh slot counter immediately after a successful claim
@@ -55,6 +59,22 @@ export function ClaimPage({
   const backUrl = `/claim/${campaignId}`;
   const platformLabel = platform === "farcaster" ? "Farcaster" : "X (Twitter)";
   const platformColor = platform === "farcaster" ? "bg-violet-600 hover:bg-violet-700" : "bg-gray-900 hover:bg-gray-800";
+  const socialTaskPartnerName = ((campaign?.eligibilityRules ?? []) as EligibilityRule[])
+    .find((r) => r.type === "social_task")?.taskId ?? campaign?.name ?? null;
+
+  // Single shared fetch — feeds both the left progress bar and the right task card
+  useEffect(() => {
+    if (!socialTaskPartnerName) return;
+    const prefix = platform === "farcaster" ? "fc" : "x";
+    const userId = twitterHandle ? `${prefix}:${twitterHandle}` : null;
+    let url = `/api/scan-progress?partnerName=${encodeURIComponent(socialTaskPartnerName)}`;
+    if (userId) url += `&userId=${encodeURIComponent(userId)}`;
+    if (recipientWallet) url += `&walletAddress=${encodeURIComponent(recipientWallet)}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((res) => { if (res.success) setScanProgress(res.data); })
+      .catch(() => null);
+  }, [socialTaskPartnerName, twitterHandle, recipientWallet, platform]);
 
   if (loadError) {
     return (
@@ -145,6 +165,19 @@ export function ClaimPage({
                   <div className="bg-white border border-border rounded-2xl shadow-sm p-5">
                     <p className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-4">Recent Claimants</p>
                     <RecentClaimantsList claims={status.recentClaims} />
+                  </div>
+                )}
+
+                {/* ScanMode progress bar — always visible */}
+                {socialTaskPartnerName && (
+                  <div className="bg-white border border-border rounded-2xl shadow-sm p-5">
+                    <p className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">ScanMode</p>
+                    <CampaignScanProgress
+                      partnerName={socialTaskPartnerName}
+                      platform={platform}
+                      variant="progress"
+                      preloadedData={scanProgress}
+                    />
                   </div>
                 )}
               </>
@@ -255,7 +288,17 @@ export function ClaimPage({
                         <h2 className="text-lg font-bold text-gray-900 mb-1">Not eligible yet</h2>
                         <p className="text-sm text-muted">You don&apos;t meet the requirements for this campaign.</p>
                       </div>
-                      <EligibilityChecks checks={eligibility.checks} />
+                      <div className="space-y-2">
+                        <EligibilityChecks checks={eligibility.checks} />
+                        {socialTaskPartnerName && (
+                          <CampaignScanProgress
+                            partnerName={socialTaskPartnerName}
+                            platform={platform}
+                            variant="task-card"
+                            preloadedData={scanProgress}
+                          />
+                        )}
+                      </div>
                       <a
                         href="https://qrbase.xyz"
                         className="block text-center text-sm text-primary font-medium hover:underline"
@@ -290,7 +333,17 @@ export function ClaimPage({
                         </div>
                         <h2 className="text-lg font-bold text-gray-900">You&apos;re eligible!</h2>
                       </div>
-                      <EligibilityChecks checks={eligibility.checks} />
+                      <div className="space-y-2">
+                        <EligibilityChecks checks={eligibility.checks} />
+                        {socialTaskPartnerName && (
+                          <CampaignScanProgress
+                            partnerName={socialTaskPartnerName}
+                            platform={platform}
+                            variant="task-card"
+                            preloadedData={scanProgress}
+                          />
+                        )}
+                      </div>
                       {recipientWallet && (
                         <div className="flex items-center justify-between bg-surface-muted border border-border rounded-xl px-4 py-2.5 text-sm">
                           <span className="text-muted text-xs">Reward sent to</span>

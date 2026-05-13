@@ -3,7 +3,7 @@
 import { getDefaultConfig, RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { base } from "wagmi/chains";
-import { http } from "viem";
+import { http, fallback } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import "@rainbow-me/rainbowkit/styles.css";
@@ -13,9 +13,10 @@ const wagmiConfig = getDefaultConfig({
   projectId: "cb68aa160d53387a3792c26d8353a6c9",
   chains: [base],
   transports: {
-    [base.id]: http(
-      process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"
-    ),
+    [base.id]: fallback([
+      http("https://mainnet.base.org"),
+      ...(process.env.NEXT_PUBLIC_BASE_RPC_URL ? [http(process.env.NEXT_PUBLIC_BASE_RPC_URL)] : []),
+    ]),
   },
   ssr: true,
 });

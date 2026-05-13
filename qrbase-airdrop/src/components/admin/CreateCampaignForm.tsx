@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useWalletClient } from "wagmi";
+import { useAccount, useWriteContract, usePublicClient } from "wagmi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { EligibilityRule, RewardTier } from "@/types";
@@ -23,7 +23,8 @@ export function CreateCampaignForm({
   onCreated: () => void;
 }) {
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -102,7 +103,7 @@ export function CreateCampaignForm({
   };
 
   const handleSubmit = async () => {
-    if (!walletClient || !address) return;
+    if (!address) return;
     setLoading(true);
     setError(null);
 
@@ -125,63 +126,36 @@ export function CreateCampaignForm({
         tierAmountsForContract = tiers.map((t) => BigInt(t.amount));
       }
 
-      // Step 1: Create on-chain via user's wallet
-      const { encodeFunctionData } = await import("viem");
-      const { QRBASE_AIRDROP_ABI, ERC20_ABI } = await import(
-        "@/lib/contract"
-      );
+      const { QRBASE_AIRDROP_ABI, ERC20_ABI } = await import("@/lib/contract");
+      const { parseEventLogs } = await import("viem");
 
-      const contractAddress =
-        process.env.NEXT_PUBLIC_AIRDROP_CONTRACT || "";
-      const usdcAddress =
-        process.env.NEXT_PUBLIC_USDC_ADDRESS ||
-        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const contractAddress = process.env.NEXT_PUBLIC_AIRDROP_CONTRACT as `0x${string}`;
+      const usdcAddress = (process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") as `0x${string}`;
 
-      // Approve USDC
-      const approveData = encodeFunctionData({
+      // Step 1: Approve USDC — wait for on-chain confirmation before proceeding
+      const approveTxHash = await writeContractAsync({
+        address: usdcAddress,
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [contractAddress as `0x${string}`, BigInt(totalUsdcRaw)],
+        args: [contractAddress, BigInt(totalUsdcRaw)],
       });
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
+      }
 
-      await walletClient.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: address,
-            to: usdcAddress as `0x${string}`,
-            data: approveData,
-          },
-        ],
-      });
-
-      // Create campaign
-      const createData = encodeFunctionData({
+      // Step 2: Create campaign on-chain
+      const createTxHash = await writeContractAsync({
+        address: contractAddress,
         abi: QRBASE_AIRDROP_ABI,
         functionName: "createCampaign",
-        args: [
-          BigInt(totalUsdcRaw),
-          BigInt(maxRecipients),
-          tierAmountsForContract,
-        ],
+        args: [BigInt(totalUsdcRaw), BigInt(maxRecipients), tierAmountsForContract],
       });
 
-      const createTxHash = await walletClient.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: address,
-            to: contractAddress as `0x${string}`,
-            data: createData,
-          },
-        ],
-      }) as `0x${string}`;
-
       // Wait for receipt and extract the real campaignId from CampaignCreated event
-      const { publicClient, QRBASE_AIRDROP_ABI: ABI } = await import("@/lib/contract");
-      const { parseEventLogs } = await import("viem");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: createTxHash });
-      const logs = parseEventLogs({ abi: ABI, eventName: "CampaignCreated", logs: receipt.logs });
+      const receipt = publicClient
+        ? await publicClient.waitForTransactionReceipt({ hash: createTxHash })
+        : await (await import("@/lib/contract")).publicClient.waitForTransactionReceipt({ hash: createTxHash });
+      const logs = parseEventLogs({ abi: QRBASE_AIRDROP_ABI, eventName: "CampaignCreated", logs: receipt.logs });
       const onChainId = logs[0].args.campaignId.toString();
 
       // Step 2: Create DB record via API
@@ -467,7 +441,7 @@ export function CreateCampaignForm({
         className="w-full"
         loading={loading}
         onClick={handleSubmit}
-        disabled={!form.name || !form.totalUsdc || !form.tokenAddress || !walletClient}
+        disabled={!form.name || !form.totalUsdc || !form.tokenAddress || !address}
       >
         Create Campaign
       </Button>

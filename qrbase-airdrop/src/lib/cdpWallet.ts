@@ -112,6 +112,8 @@ export function getCdpWalletDiagnostics() {
 export async function getAdminBaseAccount() {
   const cdp = getCdpClient();
   const { walletName: name } = getResolvedConfig();
-  const account = await cdp.evm.getAccount({ name });
-  return account.useNetwork("base");
+  // The wallet is an EVM Smart Account — load the EOA owner first, then the smart account
+  const owner = await cdp.evm.getAccount({ name });
+  const smartAccount = await cdp.evm.getSmartAccount({ owner, name });
+  return smartAccount.useNetwork("base");
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { CampaignScanProgress } from "@/components/admin/CampaignScanProgress";
+import type { EligibilityRule } from "@/types";
 
 const SESSION_KEY = "admin_verified";
 
@@ -25,6 +27,9 @@ interface Campaign {
   claimedCount: number;
   isActive: boolean;
   createdAt: string;
+  creatorWallet: string;
+  isServerCreated: boolean;
+  eligibilityRules: EligibilityRule[] | null;
 }
 
 export default function QuickCreatePage() {
@@ -35,10 +40,10 @@ export default function QuickCreatePage() {
     maxRecipients: "10",
     minPuzzleWins: "20",
     minLevel: "0",
-    minScanBalance: "0",
+    minScanBalanceUsd: "0",
     partnerTokenAddress: "",
     partnerTokenSymbol: "",
-    partnerTokenMin: "",
+    partnerTokenMinUsd: "",
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
@@ -91,10 +96,10 @@ export default function QuickCreatePage() {
           maxRecipients: parseInt(form.maxRecipients),
           minPuzzleWins: parseInt(form.minPuzzleWins) || 0,
           minLevel: parseInt(form.minLevel) || 0,
-          minScanBalance: parseInt(form.minScanBalance) || 0,
+          minScanBalanceUsd: parseFloat(form.minScanBalanceUsd) || 0,
           partnerTokenAddress: form.partnerTokenAddress || undefined,
           partnerTokenSymbol: form.partnerTokenSymbol || undefined,
-          partnerTokenMin: parseInt(form.partnerTokenMin) || 0,
+          partnerTokenMinUsd: parseFloat(form.partnerTokenMinUsd) || 0,
         }),
       });
       const data = await res.json();
@@ -257,17 +262,17 @@ export default function QuickCreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">Min $SCAN Balance</label>
+                  <label className="block text-xs text-muted mb-1.5">Min $SCAN Value (USD)</label>
                   <input
                     type="number"
                     min="0"
                     className="w-full px-4 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-primary text-sm"
-                    value={form.minScanBalance}
-                    onChange={(e) => setForm((f) => ({ ...f, minScanBalance: e.target.value }))}
+                    value={form.minScanBalanceUsd}
+                    onChange={(e) => setForm((f) => ({ ...f, minScanBalanceUsd: e.target.value }))}
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted mt-2">Set to 0 to skip the SCAN holder requirement.</p>
+              <p className="text-xs text-muted mt-2">Set to 0 to skip. Values are in USD — e.g. 10 means $10 worth of SCAN.</p>
             </div>
 
             {/* Partner token rule */}
@@ -298,14 +303,14 @@ export default function QuickCreatePage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">Min Balance</label>
+                  <label className="block text-xs text-muted mb-1.5">Min Value (USD)</label>
                   <input
                     type="number"
                     min="0"
                     className="w-full px-3 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-primary text-sm"
-                    placeholder="e.g. 1000"
-                    value={form.partnerTokenMin}
-                    onChange={(e) => setForm((f) => ({ ...f, partnerTokenMin: e.target.value }))}
+                    placeholder="e.g. 25"
+                    value={form.partnerTokenMinUsd}
+                    onChange={(e) => setForm((f) => ({ ...f, partnerTokenMinUsd: e.target.value }))}
                   />
                 </div>
               </div>
@@ -392,7 +397,7 @@ export default function QuickCreatePage() {
                 className="w-full"
                 onClick={() => {
                   setResult(null);
-                  setForm({ name: "", totalUsdc: "", maxRecipients: "10", minPuzzleWins: "20", minLevel: "0", minScanBalance: "0", partnerTokenAddress: "", partnerTokenSymbol: "", partnerTokenMin: "" });
+                  setForm({ name: "", totalUsdc: "", maxRecipients: "10", minPuzzleWins: "20", minLevel: "0", minScanBalanceUsd: "0", partnerTokenAddress: "", partnerTokenSymbol: "", partnerTokenMinUsd: "" });
                 }}
               >
                 Create Another
@@ -450,49 +455,66 @@ export default function QuickCreatePage() {
               {campaigns.map((c) => {
                 const totalUsdcDollars = (Number(c.totalUsdc) / 1e6).toFixed(2);
                 const isClosing = closingId === c.id;
+                const rules = Array.isArray(c.eligibilityRules) ? c.eligibilityRules as EligibilityRule[] : [];
+                const partnerName = rules.find((r) => r.type === "social_task")?.taskId ?? c.name;
                 return (
                   <div
                     key={c.id}
-                    className="bg-white border border-border rounded-2xl px-5 py-4 flex items-center gap-4"
+                    className="bg-white border border-border rounded-2xl px-5 py-4 space-y-0"
                   >
-                    {/* Status dot */}
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isActive ? "bg-green-500" : "bg-gray-300"}`} />
+                    <div className="flex items-center gap-4">
+                      {/* Status dot */}
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isActive ? "bg-green-500" : "bg-gray-300"}`} />
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">{c.name}</p>
-                      <p className="text-xs text-muted font-mono">
-                        #{c.onChainId} &middot; ${totalUsdcDollars} USDC &middot; {c.claimedCount}/{c.maxRecipients} claimed
-                      </p>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="font-semibold text-sm text-gray-900 truncate">{c.name}</p>
+                          {c.isServerCreated ? (
+                            <span className="flex-shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+                              Server
+                            </span>
+                          ) : (
+                            <span className="flex-shrink-0 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-[10px] font-mono text-muted">
+                              {c.creatorWallet.slice(0, 6)}…{c.creatorWallet.slice(-4)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted font-mono">
+                          #{c.onChainId} &middot; ${totalUsdcDollars} USDC &middot; {c.claimedCount}/{c.maxRecipients} claimed
+                        </p>
+                      </div>
+
+                      {/* Claim link */}
+                      <a
+                        href={`/claim/${c.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hidden sm:inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono flex-shrink-0"
+                      >
+                        Claim link
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+
+                      {/* Action */}
+                      {c.isActive ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          loading={isClosing}
+                          onClick={() => handleClose(c.id)}
+                          className="flex-shrink-0 text-error border-red-200 hover:bg-red-50"
+                        >
+                          {isClosing ? "Closing…" : "Close & Withdraw"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs font-mono text-muted flex-shrink-0">Closed</span>
+                      )}
                     </div>
 
-                    {/* Claim link */}
-                    <a
-                      href={`/claim/${c.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hidden sm:inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono flex-shrink-0"
-                    >
-                      Claim link
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-
-                    {/* Action */}
-                    {c.isActive ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        loading={isClosing}
-                        onClick={() => handleClose(c.id)}
-                        className="flex-shrink-0 text-error border-red-200 hover:bg-red-50"
-                      >
-                        {isClosing ? "Closing…" : "Close & Withdraw"}
-                      </Button>
-                    ) : (
-                      <span className="text-xs font-mono text-muted flex-shrink-0">Closed</span>
-                    )}
+                    {partnerName && <CampaignScanProgress partnerName={partnerName} />}
                   </div>
                 );
               })}

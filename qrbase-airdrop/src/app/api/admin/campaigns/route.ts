@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { getAdminBaseAccount } from "@/lib/cdpWallet";
 import { getDb } from "@/lib/db";
 import type { EligibilityRule, RewardTier } from "@/types";
 
@@ -12,10 +13,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cdpWallet = process.env.CDP_WALLET_ADDRESS?.toLowerCase();
+  let cdpWallet: string | undefined;
+  try {
+    const account = await getAdminBaseAccount();
+    cdpWallet = account.address.toLowerCase();
+  } catch {
+    cdpWallet = process.env.CDP_WALLET_ADDRESS?.toLowerCase();
+  }
   const prisma = getDb();
   const campaigns = await prisma.campaign.findMany({
-    where: cdpWallet ? { creatorWallet: cdpWallet } : undefined,
     orderBy: { createdAt: "desc" },
   });
 
@@ -23,19 +29,28 @@ export async function GET(req: NextRequest) {
     campaigns.map((c) => prisma.claim.count({ where: { campaignId: c.id } }))
   );
 
-  return NextResponse.json({
-    campaigns: campaigns.map((c, i) => ({
-      id: c.id,
-      onChainId: c.onChainId,
-      name: c.name,
-      totalUsdc: c.totalUsdc.toString(),
-      maxRecipients: c.maxRecipients,
-      claimedCount: claimCounts[i],
-      isActive: c.isActive,
-      createdAt: c.createdAt.toISOString(),
-      closedAt: c.closedAt?.toISOString() ?? null,
-    })),
-  });
+  const withMeta = campaigns.map((c, i) => ({
+    id: c.id,
+    onChainId: c.onChainId,
+    name: c.name,
+    totalUsdc: c.totalUsdc.toString(),
+    maxRecipients: c.maxRecipients,
+    claimedCount: claimCounts[i],
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
+    closedAt: c.closedAt?.toISOString() ?? null,
+    creatorWallet: c.creatorWallet,
+    isServerCreated: cdpWallet ? c.creatorWallet === cdpWallet : false,
+    eligibilityRules: c.eligibilityRules,
+  }));
+
+  // Server-created campaigns appear first
+  const sorted = [
+    ...withMeta.filter((c) => c.isServerCreated),
+    ...withMeta.filter((c) => !c.isServerCreated),
+  ];
+
+  return NextResponse.json({ campaigns: sorted });
 }
 
 // POST /api/admin/campaigns — Create campaign on-chain + in DB

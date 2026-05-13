@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encodeFunctionData, parseEventLogs } from "viem";
 import { getAdminBaseAccount } from "@/lib/cdpWallet";
-import { CONTRACT_ADDRESS, QRBASE_AIRDROP_ABI } from "@/lib/contract";
+
+import { CONTRACT_ADDRESS, QRBASE_AIRDROP_ABI, publicClient } from "@/lib/contract";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { campaignId } = (await req.json()) as { campaignId: string };
+  const { campaignId, skipChain } = (await req.json()) as { campaignId: string; skipChain?: boolean };
   if (!campaignId) {
     return NextResponse.json({ error: "campaignId is required" }, { status: 400 });
   }
@@ -27,7 +28,37 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // skipChain=true: wallet already executed the on-chain tx, just update DB
+    if (skipChain) {
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: { isActive: false, closedAt: new Date() },
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     const account = await getAdminBaseAccount();
+
+    // Read on-chain campaign to verify creator matches current CDP wallet
+    const onChain = await publicClient.readContract({
+      address: CONTRACT_ADDRESS,
+      abi: QRBASE_AIRDROP_ABI,
+      functionName: "getCampaign",
+      args: [BigInt(campaign.onChainId)],
+    }) as { creator: `0x${string}`; isActive: boolean };
+
+    if (!onChain.isActive) {
+      // Already closed on-chain — just sync the DB
+      await prisma.campaign.update({ where: { id: campaignId }, data: { isActive: false, closedAt: new Date() } });
+      return NextResponse.json({ ok: true, alreadyClosed: true });
+    }
+
+    if (onChain.creator.toLowerCase() !== account.address.toLowerCase()) {
+      return NextResponse.json(
+        { error: `Creator mismatch — on-chain creator is ${onChain.creator}, current CDP wallet is ${account.address}` },
+        { status: 400 }
+      );
+    }
 
     const data = encodeFunctionData({
       abi: QRBASE_AIRDROP_ABI,
@@ -35,11 +66,17 @@ export async function POST(req: NextRequest) {
       args: [BigInt(campaign.onChainId)],
     });
 
-    const { transactionHash } = await account.sendTransaction({
-      transaction: { to: CONTRACT_ADDRESS, data },
+    const { userOpHash } = await account.sendUserOperation({
+      calls: [{ to: CONTRACT_ADDRESS, data }],
     });
 
-    const receipt = await account.waitForTransactionReceipt({ transactionHash });
+    const userOpResult = await account.waitForUserOperation({ userOpHash });
+    if (userOpResult.status !== "complete") throw new Error("UserOperation failed");
+
+    const transactionHash = userOpResult.transactionHash;
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: transactionHash as `0x${string}`,
+    });
 
     const logs = parseEventLogs({
       abi: QRBASE_AIRDROP_ABI,

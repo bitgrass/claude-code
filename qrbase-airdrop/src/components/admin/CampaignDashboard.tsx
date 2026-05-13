@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useWalletClient } from "wagmi";
+import { useAccount, useWriteContract, usePublicClient } from "wagmi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ClaimantAvatar } from "@/components/claim/ClaimantAvatar";
+import { CampaignScanProgress } from "./CampaignScanProgress";
 import type { CampaignData, ClaimData } from "@/types";
 
 const SESSION_KEY = "admin_verified";
@@ -41,7 +42,8 @@ function ClaimantRow({ claim }: { claim: ClaimData }) {
 
 export function CampaignDashboard() {
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   const [campaigns, setCampaigns] = useState<
     (CampaignData & { claims: ClaimData[] })[]
@@ -82,33 +84,40 @@ export function CampaignDashboard() {
   }, [address]);
 
   const handleClose = async (campaignId: string) => {
-    if (!walletClient) return alert("Connect your wallet first.");
+    if (!address) return alert("Connect your wallet first.");
     if (!confirm("Close this campaign and withdraw remaining USDC?")) return;
     setCloseLoading(campaignId);
     try {
       const campaign = campaigns.find((item) => item.id === campaignId);
       if (!campaign) return;
 
-      const { encodeFunctionData } = await import("viem");
-      const { QRBASE_AIRDROP_ABI, CONTRACT_ADDRESS } = await import(
-        "@/lib/contract"
-      );
+      const { QRBASE_AIRDROP_ABI } = await import("@/lib/contract");
+      const contractAddress = process.env.NEXT_PUBLIC_AIRDROP_CONTRACT as `0x${string}`;
 
-      const data = encodeFunctionData({
+      const txHash = await writeContractAsync({
+        address: contractAddress,
         abi: QRBASE_AIRDROP_ABI,
         functionName: "closeCampaign",
         args: [BigInt(campaign.onChainId)],
       });
 
-      await walletClient.request({
-        method: "eth_sendTransaction",
-        params: [{ from: address, to: CONTRACT_ADDRESS, data }],
+      // Wait for on-chain confirmation
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+      }
+
+      // Mark closed in DB
+      const password = localStorage.getItem(SESSION_KEY);
+      await fetch("/api/admin/close-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": password ?? "" },
+        body: JSON.stringify({ campaignId, skipChain: true }),
       });
 
-      await fetch(`/api/campaigns/${campaignId}/close`, { method: "POST" });
       fetchCampaigns();
     } catch (err) {
       console.error("Failed to close:", err);
+      alert(err instanceof Error ? err.message : "Failed to close campaign");
     } finally {
       setCloseLoading(null);
     }
@@ -168,6 +177,8 @@ export function CampaignDashboard() {
         const progress = (claimedCount / campaign.maxRecipients) * 100;
         const claimUrl = `https://airdrop.qrbase.xyz/claim/${campaign.id}`;
         const isFeatured = featuredId === campaign.id;
+        const socialRule = campaign.eligibilityRules?.find((r) => r.type === "social_task");
+        const partnerName = socialRule?.taskId ?? campaign.name;
 
         return (
           <Card
@@ -279,6 +290,12 @@ export function CampaignDashboard() {
                 )}
               </div>
             </div>
+
+            {partnerName && (
+              <div className="px-5 pb-4">
+                <CampaignScanProgress partnerName={partnerName} />
+              </div>
+            )}
           </Card>
         );
       })}

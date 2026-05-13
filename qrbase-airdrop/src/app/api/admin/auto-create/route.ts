@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { encodeFunctionData, parseEventLogs } from "viem";
+import { parseEventLogs } from "viem";
 import type { Prisma } from "@prisma/client";
 import { getAdminBaseAccount, getCdpWalletDiagnostics } from "@/lib/cdpWallet";
 import { publicClient, CONTRACT_ADDRESS, USDC_ADDRESS, QRBASE_AIRDROP_ABI, ERC20_ABI } from "@/lib/contract";
@@ -52,31 +52,32 @@ export async function POST(req: NextRequest) {
     const account = await getAdminBaseAccount();
     const adminAddress = account.address;
 
-    // --- Step 1: Approve USDC spend ---
-    const approveData = encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, totalUsdcRaw],
+    // --- Steps 1+2: Approve USDC + Create campaign in one atomic UserOperation ---
+    const { userOpHash } = await account.sendUserOperation({
+      calls: [
+        {
+          to: USDC_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [CONTRACT_ADDRESS, totalUsdcRaw],
+        },
+        {
+          to: CONTRACT_ADDRESS,
+          abi: QRBASE_AIRDROP_ABI,
+          functionName: "createCampaign",
+          args: [totalUsdcRaw, BigInt(slots), [perSlot]],
+        },
+      ],
     });
 
-    const { transactionHash: approveTxHash } = await account.sendTransaction({
-      transaction: { to: USDC_ADDRESS, data: approveData },
-    });
-    await account.waitForTransactionReceipt({ transactionHash: approveTxHash });
+    const userOpResult = await account.waitForUserOperation({ userOpHash });
+    if (userOpResult.status !== "complete") throw new Error("UserOperation failed");
 
-    // --- Step 2: Create campaign on-chain ---
-    const createData = encodeFunctionData({
-      abi: QRBASE_AIRDROP_ABI,
-      functionName: "createCampaign",
-      args: [totalUsdcRaw, BigInt(slots), [perSlot]],
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: userOpResult.transactionHash as `0x${string}`,
     });
 
-    const { transactionHash: createTxHash } = await account.sendTransaction({
-      transaction: { to: CONTRACT_ADDRESS, data: createData },
-    });
-    const receipt = await account.waitForTransactionReceipt({
-      transactionHash: createTxHash,
-    });
+    const createTxHash = userOpResult.transactionHash;
 
     // --- Step 3: Extract onChainId from CampaignCreated event ---
     const logs = parseEventLogs({
@@ -137,7 +138,6 @@ export async function POST(req: NextRequest) {
       campaignId: campaign.id,
       onChainId,
       adminWallet: adminAddress,
-      approveTx: approveTxHash,
       createTx: createTxHash,
     });
   } catch (err) {

@@ -1,12 +1,21 @@
-import { createPublicClient, createWalletClient, http, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, fallback, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
 const chain = process.env.NEXT_PUBLIC_CHAIN_ID === "8453" ? base : baseSepolia;
 
+const alchemyUrl = process.env.ALCHEMY_API_KEY
+  ? `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+  : null;
+
+// mainnet.base.org is always first — Moralis/Alchemy used if available but not relied upon
 export const publicClient = createPublicClient({
   chain,
-  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL),
+  transport: fallback([
+    http("https://mainnet.base.org"),
+    ...(alchemyUrl ? [http(alchemyUrl)] : []),
+    ...(process.env.NEXT_PUBLIC_BASE_RPC_URL ? [http(process.env.NEXT_PUBLIC_BASE_RPC_URL)] : []),
+  ]),
 });
 
 export function getRelayerWalletClient() {
