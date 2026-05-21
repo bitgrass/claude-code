@@ -59,8 +59,17 @@ export function ClaimPage({
   const backUrl = `/claim/${campaignId}`;
   const platformLabel = platform === "farcaster" ? "Farcaster" : "X (Twitter)";
   const platformColor = platform === "farcaster" ? "bg-violet-600 hover:bg-violet-700" : "bg-gray-900 hover:bg-gray-800";
-  const socialTaskPartnerName = ((campaign?.eligibilityRules ?? []) as EligibilityRule[])
-    .find((r) => r.type === "social_task")?.taskId ?? campaign?.name ?? null;
+  const rules = (campaign?.eligibilityRules ?? []) as EligibilityRule[];
+  const socialTaskRule = rules.find((r) => r.type === "social_task");
+  const socialTaskPartnerName = socialTaskRule?.taskId ?? campaign?.name ?? null;
+  const hasSocialTaskRule = Boolean(socialTaskRule);
+  // Gate the claim button on task completion only when there's an explicit social_task rule
+  const taskPassed =
+    !hasSocialTaskRule ||
+    !twitterHandle ||
+    !scanProgress ||
+    scanProgress.campaignTasks.length === 0 ||
+    scanProgress.campaignTasks.some((t) => t.completedByUser);
 
   // Single shared fetch — feeds both the left progress bar and the right task card
   useEffect(() => {
@@ -293,6 +302,7 @@ export function ClaimPage({
                         {socialTaskPartnerName && (
                           <CampaignScanProgress
                             partnerName={socialTaskPartnerName}
+                            userHandle={twitterHandle}
                             platform={platform}
                             variant="task-card"
                             preloadedData={scanProgress}
@@ -338,6 +348,7 @@ export function ClaimPage({
                         {socialTaskPartnerName && (
                           <CampaignScanProgress
                             partnerName={socialTaskPartnerName}
+                            userHandle={twitterHandle}
                             platform={platform}
                             variant="task-card"
                             preloadedData={scanProgress}
@@ -346,7 +357,7 @@ export function ClaimPage({
                       </div>
                       {recipientWallet && (
                         <div className="flex items-center justify-between bg-surface-muted border border-border rounded-xl px-4 py-2.5 text-sm">
-                          <span className="text-muted text-xs">Reward sent to</span>
+                          <span className="text-muted text-xs">Wallet that will receive reward</span>
                           <span className="font-mono text-gray-700 text-xs">
                             {recipientWallet.slice(0, 6)}&hellip;{recipientWallet.slice(-4)}
                           </span>
@@ -356,6 +367,7 @@ export function ClaimPage({
                         amount={eligibility.claimAmount || "0"}
                         slotPosition={(status?.claimedCount || 0) + 1}
                         loading={false}
+                        disabled={!taskPassed}
                         onClaim={submitClaim}
                       />
                     </div>

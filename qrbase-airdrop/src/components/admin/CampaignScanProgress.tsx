@@ -62,7 +62,7 @@ export function CampaignScanProgress({ partnerName, userHandle, walletAddress, p
   // Single "Task Status" card — same design as EligibilityChecks
   if (variant === "task-card") {
     if (!data.campaignTasks.length) return null;
-    const passed = hasUser && data.campaignTasks.every((t) => t.completedByUser);
+    const passed = hasUser && data.campaignTasks.some((t) => t.completedByUser);
     const subLabel = passed ? "Completed" : "Not completed";
 
     return (

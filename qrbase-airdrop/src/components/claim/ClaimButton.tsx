@@ -6,6 +6,7 @@ interface ClaimButtonProps {
   amount: string;
   slotPosition: number;
   loading: boolean;
+  disabled?: boolean;
   onClaim: () => void;
 }
 
@@ -17,6 +18,7 @@ export function ClaimButton({
   amount,
   slotPosition,
   loading,
+  disabled = false,
   onClaim,
 }: ClaimButtonProps) {
   return (
@@ -29,6 +31,7 @@ export function ClaimButton({
         size="lg"
         className="w-full text-lg"
         loading={loading}
+        disabled={disabled}
         onClick={onClaim}
       >
         {loading

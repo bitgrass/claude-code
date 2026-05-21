@@ -50,9 +50,9 @@ export function useClaimFlow(
   const [claimedAmount, setClaimedAmount] = useState<string | null>(null);
   // Resolved recipient: for Farcaster this comes from Neynar (primary verified address)
   const [resolvedRecipient, setResolvedRecipient] = useState<string | null>(null);
-  // Tracks whether eligibility has been checked this session — prevents double-firing
-  // when Privy wallet hydrates after authenticated=true on reload
-  const eligibilityCheckedRef = useRef(false);
+  // Tracks which userId has been checked — prevents double-firing on wallet hydration
+  // and ensures eligibility re-runs when the user switches Twitter accounts
+  const eligibilityCheckedRef = useRef<string | null>(null);
 
   const userId =
     platform === "farcaster"
@@ -117,18 +117,24 @@ export function useClaimFlow(
   }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, platform]);
 
   useEffect(() => {
-    if (!campaign || !authenticated) {
-      eligibilityCheckedRef.current = false;
+    if (!campaign || !authenticated || !userId) {
+      eligibilityCheckedRef.current = null;
       return;
     }
     // Wait for wallet to resolve before checking — on reload, Privy restores
     // authenticated=true immediately but privyWallets hydrates a tick later,
     // causing a false "0 balance" check with an empty wallet address.
     if (!recipientWallet) return;
-    if (eligibilityCheckedRef.current) return;
-    eligibilityCheckedRef.current = true;
+    // User switched Twitter accounts — clear stale data before re-checking
+    if (eligibilityCheckedRef.current !== null && eligibilityCheckedRef.current !== userId) {
+      setEligibility(null);
+      setState("LOADING");
+      setResolvedRecipient(null);
+    }
+    if (eligibilityCheckedRef.current === userId) return; // already checked for this user
+    eligibilityCheckedRef.current = userId;
     checkEligibility();
-  }, [authenticated, campaign, recipientWallet]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authenticated, campaign, recipientWallet, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
