@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         ? [{ type: "token_balance" as const, token: "SCAN", tokenAddress: scanAddress, min: 0, minUsd: minScanBalanceUsd }]
         : []),
       ...(minPuzzleWins > 0
-        ? [{ type: "puzzle_wins" as const, token: "SCAN", min: minPuzzleWins }]
+        ? [{ type: "puzzle_wins" as const, token: partnerTokenSymbol || "SCAN", min: minPuzzleWins }]
         : []),
       ...(Number.isFinite(levelRequirement) && levelRequirement > 0
         ? [{ type: "min_level" as const, min: levelRequirement }]

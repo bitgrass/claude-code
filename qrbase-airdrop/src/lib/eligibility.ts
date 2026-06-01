@@ -56,11 +56,19 @@ export async function evaluateEligibility(
 
   for (const rule of rules) {
     if (rule.type === "puzzle_wins") {
-      const wins = gameStatus?.tokenWins?.[rule.token ?? ""] ?? 0;
+      // For partner campaigns, use the partner token's wins instead of SCAN.
+      // If the rule still has token:"SCAN" (legacy), look for a non-SCAN token_balance
+      // rule in the same campaign to derive the correct partner token.
+      let token = rule.token || "SCAN";
+      if (token === "SCAN") {
+        const partnerRule = rules.find((r) => r.type === "token_balance" && r.token !== "SCAN");
+        if (partnerRule?.token) token = partnerRule.token;
+      }
+      const wins = gameStatus?.tokenWins?.[token] ?? 0;
       const passed = wins >= rule.min;
       if (!passed) allPassed = false;
       checks.push({
-        rule: `$${rule.token} Puzzle Wins`,
+        rule: `$${token} Puzzle Wins`,
         passed,
         current: wins,
         required: rule.min,
