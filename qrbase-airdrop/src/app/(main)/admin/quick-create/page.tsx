@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { CampaignScanProgress } from "@/components/admin/CampaignScanProgress";
-import type { EligibilityRule } from "@/types";
 
 const SESSION_KEY = "admin_verified";
 
@@ -16,20 +14,6 @@ interface Result {
   onChainId: string;
   adminWallet: string;
   createTx: string;
-}
-
-interface Campaign {
-  id: string;
-  onChainId: string;
-  name: string;
-  totalUsdc: string;
-  maxRecipients: number;
-  claimedCount: number;
-  isActive: boolean;
-  createdAt: string;
-  creatorWallet: string;
-  isServerCreated: boolean;
-  eligibilityRules: EligibilityRule[] | null;
 }
 
 export default function QuickCreatePage() {
@@ -51,27 +35,7 @@ export default function QuickCreatePage() {
   const [copied, setCopied] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // Campaign list
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
-  const [closingId, setClosingId] = useState<string | null>(null);
-  const [closeError, setCloseError] = useState<string | null>(null);
-  const [closeResult, setCloseResult] = useState<{ txHash: string; remainingUsdc: string } | null>(null);
-
   const apiKey = () => localStorage.getItem(SESSION_KEY) ?? "";
-
-  const loadCampaigns = useCallback(async () => {
-    setLoadingCampaigns(true);
-    try {
-      const res = await fetch("/api/admin/campaigns", {
-        headers: { "x-api-key": apiKey() },
-      });
-      const data = await res.json();
-      if (res.ok) setCampaigns(data.campaigns);
-    } finally {
-      setLoadingCampaigns(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (!localStorage.getItem(SESSION_KEY)) {
@@ -79,8 +43,7 @@ export default function QuickCreatePage() {
       return;
     }
     setReady(true);
-    loadCampaigns();
-  }, [router, loadCampaigns]);
+  }, [router]);
 
   const handleCreate = async () => {
     setLoading(true);
@@ -105,32 +68,10 @@ export default function QuickCreatePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create");
       setResult(data as Result);
-      loadCampaigns();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleClose = async (campaignId: string) => {
-    setClosingId(campaignId);
-    setCloseError(null);
-    setCloseResult(null);
-    try {
-      const res = await fetch("/api/admin/close-campaign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey() },
-        body: JSON.stringify({ campaignId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to close");
-      setCloseResult({ txHash: data.txHash, remainingUsdc: data.remainingUsdc });
-      loadCampaigns();
-    } catch (err) {
-      setCloseError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setClosingId(null);
     }
   };
 
@@ -168,9 +109,20 @@ export default function QuickCreatePage() {
               </span>
             </div>
           </div>
-          <span className="text-xs font-mono text-muted bg-surface-muted border border-border px-3 py-1.5 rounded-lg">
-            CDP Server Wallet
-          </span>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/manage"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-surface-muted border border-border rounded-lg px-3 py-1.5 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Manage
+            </Link>
+            <span className="text-xs font-mono text-muted bg-surface-muted border border-border px-3 py-1.5 rounded-lg">
+              CDP Server Wallet
+            </span>
+          </div>
         </div>
       </header>
 
@@ -406,120 +358,20 @@ export default function QuickCreatePage() {
           )}
         </div>
 
-        {/* ── Manage Campaigns ── */}
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+        {/* Link to manage page */}
+        <div className="max-w-2xl mx-auto">
+          <Link
+            href="/admin/manage"
+            className="flex items-center justify-between bg-white border border-border rounded-2xl px-5 py-4 hover:bg-surface-muted transition-colors group"
+          >
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Manage Campaigns</h2>
-              <p className="text-xs text-muted">Close a campaign to stop new claims and withdraw remaining USDC back to the CDP wallet.</p>
+              <p className="text-sm font-semibold text-gray-900">Manage Campaigns</p>
+              <p className="text-xs text-muted mt-0.5">Close campaigns and withdraw remaining USDC.</p>
             </div>
-            <button
-              onClick={loadCampaigns}
-              className="text-xs text-muted hover:text-gray-900 flex items-center gap-1.5 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-          </div>
-
-          {closeError && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-error">
-              {closeError}
-            </div>
-          )}
-          {closeResult && (
-            <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 space-y-1">
-              <p className="font-semibold">Campaign closed — remaining USDC withdrawn to CDP wallet.</p>
-              <p className="font-mono text-xs">
-                Returned: ${(Number(closeResult.remainingUsdc) / 1e6).toFixed(2)} USDC &middot;{" "}
-                <a
-                  href={`https://basescan.org/tx/${closeResult.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  tx
-                </a>
-              </p>
-            </div>
-          )}
-
-          {loadingCampaigns ? (
-            <p className="text-sm text-muted text-center py-8">Loading campaigns…</p>
-          ) : campaigns.length === 0 ? (
-            <p className="text-sm text-muted text-center py-8">No campaigns yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {campaigns.map((c) => {
-                const totalUsdcDollars = (Number(c.totalUsdc) / 1e6).toFixed(2);
-                const isClosing = closingId === c.id;
-                const rules = Array.isArray(c.eligibilityRules) ? c.eligibilityRules as EligibilityRule[] : [];
-                const partnerName = rules.find((r) => r.type === "social_task")?.taskId ?? c.name;
-                return (
-                  <div
-                    key={c.id}
-                    className="bg-white border border-border rounded-2xl px-5 py-4 space-y-0"
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Status dot */}
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isActive ? "bg-green-500" : "bg-gray-300"}`} />
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="font-semibold text-sm text-gray-900 truncate">{c.name}</p>
-                          {c.isServerCreated ? (
-                            <span className="flex-shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
-                              Server
-                            </span>
-                          ) : (
-                            <span className="flex-shrink-0 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-[10px] font-mono text-muted">
-                              {c.creatorWallet.slice(0, 6)}…{c.creatorWallet.slice(-4)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted font-mono">
-                          #{c.onChainId} &middot; ${totalUsdcDollars} USDC &middot; {c.claimedCount}/{c.maxRecipients} claimed
-                        </p>
-                      </div>
-
-                      {/* Claim link */}
-                      <a
-                        href={`/claim/${c.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden sm:inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono flex-shrink-0"
-                      >
-                        Claim link
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-
-                      {/* Action */}
-                      {c.isActive ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          loading={isClosing}
-                          onClick={() => handleClose(c.id)}
-                          className="flex-shrink-0 text-error border-red-200 hover:bg-red-50"
-                        >
-                          {isClosing ? "Closing…" : "Close & Withdraw"}
-                        </Button>
-                      ) : (
-                        <span className="text-xs font-mono text-muted flex-shrink-0">Closed</span>
-                      )}
-                    </div>
-
-                    {partnerName && <CampaignScanProgress partnerName={partnerName} />}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            <svg className="w-4 h-4 text-muted group-hover:text-gray-900 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
       </main>
     </div>

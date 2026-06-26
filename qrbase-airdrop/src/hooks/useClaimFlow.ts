@@ -4,37 +4,52 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { usePrivy, useLoginWithOAuth, useWallets } from "@privy-io/react-auth";
 import type { ClaimPageState, EligibilityResponse, CampaignData } from "@/types";
 
+type PrivyWalletLike = {
+  type?: string;
+  address?: string;
+  chainType?: string;
+  walletClientType?: string;
+};
+
+function isEmbeddedEthereumWallet(wallet?: PrivyWalletLike): wallet is PrivyWalletLike & { address: string } {
+  return Boolean(
+    wallet?.address &&
+      wallet.walletClientType === "privy" &&
+      (!wallet.chainType || wallet.chainType === "ethereum")
+  );
+}
+
 export function useClaimFlow(
   campaign: CampaignData | null,
   platform: "twitter" | "farcaster"
 ) {
-  const { authenticated, user, login: privyLogin } = usePrivy();
+  const { ready, authenticated, user, login: privyLogin } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
   const { wallets: privyWallets } = useWallets();
 
-  // Privy wallet — used for eligibility balance check AND as reward recipient
-  // Farcaster: verified ETH address → custody address → embedded wallet
-  // Twitter: linked external wallet → embedded wallet
+  // Privy wallet - used for eligibility balance check AND as reward recipient.
+  // Twitter claims use the existing embedded Privy wallet, not external linked wallets.
   const farcasterVerifiedAddress =
     (user?.farcaster as unknown as { verifiedAddresses?: { eth_addresses?: string[] } })
       ?.verifiedAddresses?.eth_addresses?.[0];
 
-  // Twitter: user.wallet is Privy's direct primary wallet accessor (most reliable)
-  // Falls back to linkedAccounts wallet search, then privyWallets (connected session)
-  const twitterWallet =
-    (user?.wallet as { address?: string } | undefined)?.address ||
+  // Read the existing embedded Privy wallet; do not fall back to external linked wallets.
+  const embeddedPrivyWallet =
     (user?.linkedAccounts?.find(
-      (a) => a.type === "wallet" && "address" in a
-    ) as { address: string } | undefined)?.address ||
-    privyWallets[0]?.address ||
+      (account) => account.type === "wallet" && isEmbeddedEthereumWallet(account as PrivyWalletLike)
+    ) as PrivyWalletLike | undefined)?.address ||
+    (isEmbeddedEthereumWallet(user?.wallet as PrivyWalletLike | undefined)
+      ? (user?.wallet as PrivyWalletLike).address
+      : undefined) ||
+    privyWallets.find((wallet) => isEmbeddedEthereumWallet(wallet as PrivyWalletLike))?.address ||
     "";
 
   const recipientWallet =
     platform === "farcaster"
       ? (farcasterVerifiedAddress ||
           (user?.farcaster as unknown as { ownerAddress?: string })?.ownerAddress ||
-          privyWallets[0]?.address || "")
-      : twitterWallet;
+          embeddedPrivyWallet)
+      : embeddedPrivyWallet;
 
   const login = useCallback(() => {
     if (platform === "twitter") {
@@ -117,14 +132,18 @@ export function useClaimFlow(
   }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, platform]);
 
   useEffect(() => {
-    if (!campaign || !authenticated || !userId) {
+    if (!ready || !campaign || !authenticated || !userId) {
       eligibilityCheckedRef.current = null;
       return;
     }
     // Wait for wallet to resolve before checking — on reload, Privy restores
     // authenticated=true immediately but privyWallets hydrates a tick later,
     // causing a false "0 balance" check with an empty wallet address.
-    if (!recipientWallet) return;
+    if (!recipientWallet) {
+      setEligibility({ eligible: false, checks: [], reason: "No embedded Privy wallet found for your account." });
+      setState("INELIGIBLE");
+      return;
+    }
     // User switched Twitter accounts — clear stale data before re-checking
     if (eligibilityCheckedRef.current !== null && eligibilityCheckedRef.current !== userId) {
       setEligibility(null);
@@ -134,7 +153,7 @@ export function useClaimFlow(
     if (eligibilityCheckedRef.current === userId) return; // already checked for this user
     eligibilityCheckedRef.current = userId;
     checkEligibility();
-  }, [authenticated, campaign, recipientWallet, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, authenticated, campaign, recipientWallet, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
@@ -146,10 +165,10 @@ export function useClaimFlow(
   }, [campaign, isLoggedIn, state]);
 
   const submitClaim = useCallback(async () => {
-    if (!campaign || !userId || !recipientWallet) return;
+    if (!campaign || !userId) return;
 
     if (!recipientWallet) {
-      setEligibility({ eligible: false, checks: [], reason: "No wallet linked to your account. Please link a wallet in your Privy account settings." });
+      setEligibility({ eligible: false, checks: [], reason: "No embedded Privy wallet found for your account." });
       setState("INELIGIBLE");
       return;
     }

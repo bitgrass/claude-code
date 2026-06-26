@@ -1,4 +1,4 @@
-const GAME_BASE = "https://beta.qrbase.xyz/api/game";
+const GAME_BASE = "https://www.qrbase.xyz/api/game";
 const GAME_API_KEY = process.env.GAME_PUBLIC_API_KEY ?? "pub_qrbase_ext_7f8k2mX9pLwR4vNz";
 
 export interface QRbaseGameStatus {

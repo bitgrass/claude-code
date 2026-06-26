@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const userId = searchParams.get("userId");
   const walletAddress = searchParams.get("walletAddress");
 
-  let upstream = `https://beta.qrbase.xyz/api/game/scanMode/progress?partnerName=${encodeURIComponent(partnerName)}`;
+  let upstream = `https://www.qrbase.xyz/api/game/scanMode/progress?partnerName=${encodeURIComponent(partnerName)}`;
   if (userId) upstream += `&userId=${encodeURIComponent(userId)}`;
   if (walletAddress) upstream += `&walletAddress=${encodeURIComponent(walletAddress)}`;
 
