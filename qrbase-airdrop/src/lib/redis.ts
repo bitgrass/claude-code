@@ -14,6 +14,20 @@ function getRedis(): Redis | null {
   return redis;
 }
 
+// Exposed for the usage-tracking layer, which needs the raw client for atomic
+// HINCRBY/pipeline aggregation. Returns null when Redis is not configured.
+export function getRedisClient(): Redis | null {
+  return getRedis();
+}
+
+// Redis is a cache/rate-limit convenience — it must NEVER break a request.
+// Every helper below degrades gracefully if Redis is unreachable, over quota,
+// or erroring (e.g. Upstash "max requests limit exceeded"), because a hard
+// throw here previously 500'd eligibility/claim endpoints.
+function logRedisFailure(op: string, err: unknown): void {
+  console.error(`Redis ${op} failed (continuing without cache):`, err instanceof Error ? err.message : err);
+}
+
 export async function rateLimit(
   key: string,
   maxAttempts: number,
@@ -22,21 +36,32 @@ export async function rateLimit(
   const client = getRedis();
   if (!client) return { allowed: true, remaining: maxAttempts };
 
-  const current = await client.incr(key);
-  if (current === 1) {
-    await client.expire(key, windowSeconds);
+  try {
+    const current = await client.incr(key);
+    if (current === 1) {
+      await client.expire(key, windowSeconds);
+    }
+    return {
+      allowed: current <= maxAttempts,
+      remaining: Math.max(0, maxAttempts - current),
+    };
+  } catch (err) {
+    // Fail OPEN: if we can't rate limit we still serve the request rather than
+    // breaking the endpoint. Abuse protection degrades; availability wins.
+    logRedisFailure("rateLimit", err);
+    return { allowed: true, remaining: maxAttempts };
   }
-
-  return {
-    allowed: current <= maxAttempts,
-    remaining: Math.max(0, maxAttempts - current),
-  };
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
   const client = getRedis();
   if (!client) return null;
-  return client.get(key);
+  try {
+    return await client.get<T>(key);
+  } catch (err) {
+    logRedisFailure("cacheGet", err); // treat as a cache miss
+    return null;
+  }
 }
 
 export async function cacheSet(
@@ -46,24 +71,51 @@ export async function cacheSet(
 ): Promise<void> {
   const client = getRedis();
   if (!client) return;
-  await client.set(key, value, { ex: ttlSeconds });
+  try {
+    await client.set(key, value, { ex: ttlSeconds });
+  } catch (err) {
+    logRedisFailure("cacheSet", err);
+  }
+}
+
+export async function cacheDelete(key: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.del(key);
+  } catch (err) {
+    logRedisFailure("cacheDelete", err);
+  }
 }
 
 // Persistent settings (no TTL)
 export async function settingGet(key: string): Promise<string | null> {
   const client = getRedis();
   if (!client) return null;
-  return client.get<string>(key);
+  try {
+    return await client.get<string>(key);
+  } catch (err) {
+    logRedisFailure("settingGet", err);
+    return null;
+  }
 }
 
 export async function settingSet(key: string, value: string): Promise<void> {
   const client = getRedis();
   if (!client) return;
-  await client.set(key, value);
+  try {
+    await client.set(key, value);
+  } catch (err) {
+    logRedisFailure("settingSet", err);
+  }
 }
 
 export async function settingDelete(key: string): Promise<void> {
   const client = getRedis();
   if (!client) return;
-  await client.del(key);
+  try {
+    await client.del(key);
+  } catch (err) {
+    logRedisFailure("settingDelete", err);
+  }
 }

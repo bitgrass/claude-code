@@ -1,156 +1,142 @@
 import type { EligibilityRule, EligibilityCheck } from "@/types";
-import { getGameStatus, getScanModeProgress } from "./qrbase-api";
+import { getGameStatus, getScanModeProgress, getScanModeTokenBalance } from "./qrbase-api";
 
-async function verifySocialTask(
-  rule: EligibilityRule,
-  userHandle: string,
-  walletAddress: string,
-  platform: "twitter" | "farcaster"
-): Promise<EligibilityCheck> {
-  const label = rule.label || rule.taskId || "Social Task";
-
-  if (!rule.taskId) {
-    return { rule: label, passed: false, current: 0, required: 1, actionUrl: rule.url, actionLabel: rule.url ? "Go \u2192" : undefined };
-  }
-
-  try {
-    // Use scanMode/progress endpoint \u2014 taskId is the partnerName (e.g. "RUSSELL")
-    const progress = await getScanModeProgress(rule.taskId, userHandle, walletAddress, platform);
-
-    if (!progress) {
-      return { rule: label, passed: false, current: 0, required: 1, actionUrl: rule.url, actionLabel: rule.url ? "Go \u2192" : undefined };
-    }
-
-    const passed = progress.taskGatePassed;
-    const completedCount = progress.campaignTasks.filter((t) => t.completedByUser).length;
-    const totalCount = progress.campaignTasks.length;
-
-    return {
-      rule: label,
-      passed,
-      current: `${completedCount}/${totalCount} tasks`,
-      required: `${totalCount}/${totalCount} tasks`,
-      actionUrl: rule.url,
-      actionLabel: rule.url ? "Go \u2192" : undefined,
-    };
-  } catch (err) {
-    console.error("verifySocialTask error:", err);
-    return { rule: label, passed: false, current: 0, required: 1, actionUrl: rule.url, actionLabel: rule.url ? "Go \u2192" : undefined };
-  }
+// EVM addresses are 0x + 40 hex chars. Anything else (base58) is a Solana mint.
+function isEvmAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
 
 export async function evaluateEligibility(
   rules: EligibilityRule[],
   userHandle: string,
   walletAddress: string,
-  platform: "twitter" | "farcaster" = "twitter"
+  platform: "twitter" | "farcaster" = "twitter",
+  solanaWallet: string = ""
 ): Promise<{ eligible: boolean; checks: EligibilityCheck[] }> {
   const checks: EligibilityCheck[] = [];
   let allPassed = true;
 
-  // Fetch game status once if any rule needs it
+  // ── Where each value comes from ───────────────────────────────────────────
+  //   partner wins + level → game/public/status (tokenWins[token], level)
+  //   token balance        → game/scanMode/tokenBalance (EVM and Solana alike)
+  //   tasks + thresholds   → game/scanMode/progress (minPartnerPuzzles, minLevel,
+  //                          minTokenHold, tokenPriceUsd, campaignTasks)
+  // progress is keyed by partnerName + the token contractAddress (to
+  // disambiguate campaigns sharing a partnerName). Fetch it once.
+  const tokenBalanceRule = rules.find((r) => r.type === "token_balance");
+  const partnerTokenAddress = tokenBalanceRule?.tokenAddress || "";
+  const partnerName =
+    tokenBalanceRule?.token ||
+    rules.find((r) => r.type === "puzzle_wins")?.token ||
+    rules.find((r) => r.type === "social_task")?.taskId ||
+    "";
+
+  // The wins/level/task fields are userId-based; the wallet only affects qrbase's
+  // own hold gate (which we don't use — we check the hold ourselves below).
+  const progressWallet = walletAddress || solanaWallet || "";
+  const progress = partnerName
+    ? await getScanModeProgress(partnerName, userHandle, progressWallet, platform, partnerTokenAddress)
+    : null;
+
   const needsGameStatus = rules.some(
-    (r) => r.type === "puzzle_wins" || r.type === "min_level" || r.type === "min_wins" || r.type === "min_winrate"
+    (r) =>
+      r.type === "puzzle_wins" ||
+      r.type === "min_level" ||
+      r.type === "min_wins" ||
+      r.type === "min_winrate"
   );
   const gameStatus = needsGameStatus ? await getGameStatus(userHandle, platform) : null;
 
   for (const rule of rules) {
     if (rule.type === "puzzle_wins") {
-      // For partner campaigns, use the partner token's wins instead of SCAN.
-      // If the rule still has token:"SCAN" (legacy), look for a non-SCAN token_balance
-      // rule in the same campaign to derive the correct partner token.
-      let token = rule.token || "SCAN";
-      if (token === "SCAN") {
-        const partnerRule = rules.find((r) => r.type === "token_balance" && r.token !== "SCAN");
-        if (partnerRule?.token) token = partnerRule.token;
-      }
-      const wins = gameStatus?.tokenWins?.[token] ?? 0;
-      const passed = wins >= rule.min;
+      const token = rule.token || partnerName || "SCAN";
+      // scanMode/progress counts scan-mode wins for this partner; status's
+      // tokenWins folds in puzzle wins too, so it over-counts. progress wins.
+      const wins = progress?.userPartnerWins ?? gameStatus?.tokenWins?.[token] ?? 0;
+      const required = progress?.minPartnerPuzzles ?? rule.min;
+      const passed = wins >= required;
       if (!passed) allPassed = false;
-      checks.push({
-        rule: `$${token} Puzzle Wins`,
-        passed,
-        current: wins,
-        required: rule.min,
-      });
+      checks.push({ rule: `$${token} Puzzle Wins`, passed, current: wins, required });
     } else if (rule.type === "min_level") {
       const level = gameStatus?.level ?? 0;
-      const passed = level >= rule.min;
+      const required = progress?.minLevel ?? rule.min;
+      const passed = level >= required;
       if (!passed) allPassed = false;
-      checks.push({
-        rule: "QRbase Level",
-        passed,
-        current: level,
-        required: rule.min,
-      });
+      checks.push({ rule: "QRbase Level", passed, current: level, required });
     } else if (rule.type === "min_wins") {
       const wins = gameStatus?.winsAllTime ?? 0;
       const passed = wins >= rule.min;
       if (!passed) allPassed = false;
-      checks.push({
-        rule: "Total Wins",
-        passed,
-        current: wins,
-        required: rule.min,
-      });
+      checks.push({ rule: "Total Wins", passed, current: wins, required: rule.min });
     } else if (rule.type === "min_winrate") {
       const rate = Math.round((gameStatus?.winRate ?? 0) * 100);
       const passed = rate >= rule.min;
       if (!passed) allPassed = false;
-      checks.push({
-        rule: "Win Rate",
-        passed,
-        current: `${rate}%`,
-        required: `${rule.min}%`,
-      });
+      checks.push({ rule: "Win Rate", passed, current: `${rate}%`, required: `${rule.min}%` });
     } else if (rule.type === "token_balance") {
-      if (!walletAddress) {
-        // Skip balance check until wallet is connected — re-check will verify it
+      // Hold checked via qrbase's tokenBalance (matches qrbase). qrbase detects
+      // the chain from the CA (0x… → EVM, base58 → Solana); use the wallet for
+      // that chain. Price + threshold come from the shared progress response.
+      const tokenAddress = rule.tokenAddress || process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
+      const isEvm = isEvmAddress(tokenAddress);
+      const wallet = isEvm ? walletAddress : solanaWallet;
+      const usdMode = Boolean(rule.minUsd && rule.minUsd > 0);
+
+      if (!tokenAddress || !wallet) {
+        allPassed = false;
+        checks.push({
+          rule: `$${rule.token} Balance`,
+          passed: false,
+          current: usdMode ? "$0.00" : 0,
+          required: usdMode ? `$${progress?.minTokenHold ?? rule.minUsd}` : rule.min,
+        });
         continue;
       }
-      const tokenAddress = rule.tokenAddress || process.env.NEXT_PUBLIC_SCAN_TOKEN_ADDRESS || "";
-      const moralisKey = process.env.NEXT_PUBLIC_MORALIS_APY_KEY || "";
 
-      const moralisRes = await fetch(
-        `https://deep-index.moralis.io/api/v2.2/${walletAddress}/erc20?chain=base&token_addresses%5B0%5D=${tokenAddress}`,
-        { headers: { accept: "application/json", "X-API-Key": moralisKey } }
-      );
-      const moralisData = await moralisRes.json() as { balance?: string; decimals?: string }[];
-      const tokenData = moralisData?.[0];
-      const balanceInTokens = tokenData
-        ? Number(tokenData.balance ?? "0") / 10 ** Number(tokenData.decimals ?? "18")
-        : 0;
+      // qrbase needs the token's chain (from progress.tokenChain) — e.g. BURGERS
+      // lives on "robinhood", not base. Omitting it returns a silent 0.
+      const balanceTokens = await getScanModeTokenBalance(wallet, tokenAddress, progress?.tokenChain);
 
-      if (rule.minUsd && rule.minUsd > 0) {
-        const priceRes = await fetch(
-          `https://deep-index.moralis.io/api/v2.2/erc20/${tokenAddress}/price?chain=base`,
-          { headers: { accept: "application/json", "X-API-Key": moralisKey } }
-        );
-        const priceData = await priceRes.json() as { usdPrice?: number };
-        const tokenPriceUsd = priceData?.usdPrice ?? 0;
-        const balanceUsd = balanceInTokens * tokenPriceUsd;
-        const passed = balanceUsd >= rule.minUsd;
+      if (usdMode) {
+        const priceUsd = progress?.tokenPriceUsd ?? 0;
+        // Follow qrbase's live minTokenHold; fall back to the DB minUsd.
+        const effectiveMinUsd = progress?.minTokenHold ?? rule.minUsd ?? 1;
+        const balanceUsd = balanceTokens * priceUsd;
+        const passed = balanceUsd >= effectiveMinUsd;
         if (!passed) allPassed = false;
         checks.push({
           rule: `$${rule.token} Balance`,
           passed,
           current: `$${balanceUsd.toFixed(2)}`,
-          required: `$${rule.minUsd}`,
+          required: `$${effectiveMinUsd}`,
         });
       } else {
-        const passed = balanceInTokens >= rule.min;
+        const passed = balanceTokens >= rule.min;
         if (!passed) allPassed = false;
         checks.push({
           rule: `$${rule.token} Balance`,
           passed,
-          current: Math.floor(balanceInTokens),
+          current: Math.floor(balanceTokens),
           required: rule.min,
         });
       }
     } else if (rule.type === "social_task") {
-      const check = await verifySocialTask(rule, userHandle, walletAddress, platform);
-      if (!check.passed) allPassed = false;
-      checks.push(check);
+      const label = rule.label || rule.taskId || "Social Task";
+      const tasks = progress?.campaignTasks ?? [];
+      const completedCount = tasks.filter((t) => t.completedByUser).length;
+      const totalCount = tasks.length;
+      // Passed when a required task is completed. No tasks listed → nothing to
+      // do (passed) as long as progress resolved; progress failure → fail closed.
+      const passed = totalCount === 0 ? Boolean(progress) : completedCount > 0;
+      if (!passed) allPassed = false;
+      checks.push({
+        rule: label,
+        passed,
+        current: totalCount ? `${completedCount}/${totalCount} tasks` : "—",
+        required: totalCount ? `${totalCount}/${totalCount} tasks` : "—",
+        actionUrl: rule.url,
+        actionLabel: rule.url ? "Go →" : undefined,
+      });
     }
   }
 

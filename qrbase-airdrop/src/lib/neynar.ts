@@ -66,6 +66,45 @@ export async function getFarcasterUsernames(
   return map;
 }
 
+// Fetches a Farcaster user's verified wallets (EVM + Solana) in one call.
+// Farcaster exposes both eth_addresses and sol_addresses; partner tokens can
+// live on either chain, so we resolve both. Falls back through
+// primary → first-verified (→ custody for EVM only; Solana has no custody).
+export async function getFarcasterWallets(
+  fid: number
+): Promise<{ eth: string | null; sol: string | null }> {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) return { eth: null, sol: null };
+
+  try {
+    const res = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+      { headers: { "x-api-key": apiKey, accept: "application/json" } }
+    );
+    if (!res.ok) return { eth: null, sol: null };
+
+    const data = (await res.json()) as {
+      users?: Array<{
+        verified_addresses?: {
+          primary?: { eth_address?: string; sol_address?: string };
+          eth_addresses?: string[];
+          sol_addresses?: string[];
+        };
+        custody_address?: string;
+      }>;
+    };
+    const user = data.users?.[0];
+    if (!user) return { eth: null, sol: null };
+    const v = user.verified_addresses;
+    return {
+      eth: v?.primary?.eth_address || v?.eth_addresses?.[0] || user.custody_address || null,
+      sol: v?.primary?.sol_address || v?.sol_addresses?.[0] || null,
+    };
+  } catch {
+    return { eth: null, sol: null };
+  }
+}
+
 // Fetches the primary verified ETH address for a Farcaster user via Neynar API.
 export async function getFarcasterPrimaryWallet(
   fid: number

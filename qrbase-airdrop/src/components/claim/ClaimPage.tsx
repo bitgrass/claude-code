@@ -49,6 +49,7 @@ export function ClaimPage({
     submitClaim,
     recipientWallet,
     twitterHandle,
+    scanHandle,
   } = useClaimFlow(campaign, platform);
 
   // Refresh slot counter immediately after a successful claim
@@ -62,28 +63,34 @@ export function ClaimPage({
   const rules = (campaign?.eligibilityRules ?? []) as EligibilityRule[];
   const socialTaskRule = rules.find((r) => r.type === "social_task");
   const socialTaskPartnerName = socialTaskRule?.taskId ?? campaign?.name ?? null;
+  // qrbase's progress endpoint now needs the token CA (from the token_balance rule).
+  const partnerContractAddress =
+    rules.find((r) => r.type === "token_balance")?.tokenAddress ?? "";
   const hasSocialTaskRule = Boolean(socialTaskRule);
   // Gate the claim button on task completion only when there's an explicit social_task rule
   const taskPassed =
     !hasSocialTaskRule ||
-    !twitterHandle ||
+    !scanHandle ||
     !scanProgress ||
     scanProgress.campaignTasks.length === 0 ||
     scanProgress.campaignTasks.some((t) => t.completedByUser);
 
-  // Single shared fetch — feeds both the left progress bar and the right task card
+  // Single shared fetch — feeds both the left progress bar and the right task card.
+  // Use scanHandle (Farcaster → fid, Twitter → username) — the Farcaster username
+  // is NOT recognised by qrbase, so twitterHandle would return "not completed".
   useEffect(() => {
     if (!socialTaskPartnerName) return;
     const prefix = platform === "farcaster" ? "fc" : "x";
-    const userId = twitterHandle ? `${prefix}:${twitterHandle}` : null;
+    const userId = scanHandle ? `${prefix}:${scanHandle}` : null;
     let url = `/api/scan-progress?partnerName=${encodeURIComponent(socialTaskPartnerName)}`;
     if (userId) url += `&userId=${encodeURIComponent(userId)}`;
     if (recipientWallet) url += `&walletAddress=${encodeURIComponent(recipientWallet)}`;
+    if (partnerContractAddress) url += `&contractAddress=${encodeURIComponent(partnerContractAddress)}`;
     fetch(url)
       .then((r) => r.json())
       .then((res) => { if (res.success) setScanProgress(res.data); })
       .catch(() => null);
-  }, [socialTaskPartnerName, twitterHandle, recipientWallet, platform]);
+  }, [socialTaskPartnerName, scanHandle, recipientWallet, partnerContractAddress, platform]);
 
   if (loadError) {
     return (

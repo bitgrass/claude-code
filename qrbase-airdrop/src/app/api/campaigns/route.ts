@@ -3,11 +3,12 @@ import type { Campaign, Claim } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import { getFarcasterUsers } from "@/lib/neynar";
 import { resolveClaimIdentity } from "@/lib/claimants";
+import { withUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/campaigns — List campaigns
-export async function GET(req: NextRequest) {
+async function handler(req: NextRequest) {
   const prisma = getDb();
   const { searchParams } = new URL(req.url);
   const creator = searchParams.get("creator");
@@ -25,10 +26,32 @@ export async function GET(req: NextRequest) {
         claims: {
           orderBy: [{ slotNumber: "desc" }, { claimedAt: "desc" }],
           take: 10,
+          // Only the fields the response and identity resolver actually use.
+          select: {
+            id: true,
+            twitterId: true,
+            twitterHandle: true,
+            walletAddress: true,
+            slotNumber: true,
+            usdcAmount: true,
+            claimedAt: true,
+          },
         },
       },
       orderBy: { createdAt: "desc" },
-    }) as (Campaign & { claims: Claim[]; _count: { claims: number } })[];
+    }) as (Campaign & {
+      claims: Pick<
+        Claim,
+        | "id"
+        | "twitterId"
+        | "twitterHandle"
+        | "walletAddress"
+        | "slotNumber"
+        | "usdcAmount"
+        | "claimedAt"
+      >[];
+      _count: { claims: number };
+    })[];
 
     const allClaims = campaigns.flatMap((c) => c.claims);
     // Only resolve Farcaster FIDs — Twitter IDs are 17-19 digits (> 1 billion), skip them
@@ -71,3 +94,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch campaigns" }, { status: 500 });
   }
 }
+
+export const GET = withUsage("/api/campaigns", handler);

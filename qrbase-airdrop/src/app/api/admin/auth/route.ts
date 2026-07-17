@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withUsage } from "@/lib/usage/track";
 
 // POST /api/admin/auth — verify admin password
-export async function POST(req: NextRequest) {
+async function handler(req: NextRequest) {
   const { password } = await req.json() as { password: string };
   const adminPassword = process.env.ADMIN_PASSWORD;
 
@@ -15,3 +16,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withUsage("/api/admin/auth", handler);

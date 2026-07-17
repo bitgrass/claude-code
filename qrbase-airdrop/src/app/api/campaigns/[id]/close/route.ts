@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { cacheDelete } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 
 // POST /api/campaigns/[id]/close — Admin closes campaign in DB
-export async function POST(
+async function handler(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -27,6 +29,8 @@ export async function POST(
       },
     });
 
+    await cacheDelete(`status:v2:${params.id}`);
+
     return NextResponse.json({
       campaign: {
         ...updated,
@@ -41,3 +45,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withUsage("/api/campaigns/[id]/close", handler);

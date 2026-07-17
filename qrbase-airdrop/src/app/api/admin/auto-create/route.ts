@@ -4,11 +4,12 @@ import type { Prisma } from "@prisma/client";
 import { getAdminBaseAccount, getCdpWalletDiagnostics } from "@/lib/cdpWallet";
 import { publicClient, CONTRACT_ADDRESS, USDC_ADDRESS, QRBASE_AIRDROP_ABI, ERC20_ABI } from "@/lib/contract";
 import { getDb } from "@/lib/db";
+import { withUsage } from "@/lib/usage/track";
 import type { EligibilityRule, RewardTier } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+async function handler(req: NextRequest) {
   // --- Auth ---
   const apiKey = req.headers.get("x-api-key");
   if (!process.env.ADMIN_API_KEY || apiKey !== process.env.ADMIN_API_KEY) {
@@ -179,3 +180,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withUsage("/api/admin/auto-create", handler);

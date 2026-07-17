@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { withUsage } from "@/lib/usage/track";
 import type { EligibilityRule } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
+async function handler(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -60,3 +61,5 @@ export async function POST(
     eligibilityRules: updated.eligibilityRules,
   });
 }
+
+export const POST = withUsage("/api/admin/campaigns/[id]/min-level", handler);

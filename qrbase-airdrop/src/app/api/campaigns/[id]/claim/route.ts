@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Campaign, Claim } from "@prisma/client";
+import type { Campaign } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { cacheDelete } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 import type { RewardTier } from "@/types";
 
 // POST /api/campaigns/[id]/claim — Record claim after on-chain success
-export async function POST(
+async function handler(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -19,10 +21,11 @@ export async function POST(
       );
     }
 
+    // Only the claim count is needed to compute the next slot number.
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
-      include: { claims: { orderBy: { slotNumber: "asc" } } },
-    }) as (Campaign & { claims: Claim[] }) | null;
+      include: { _count: { select: { claims: true } } },
+    }) as (Campaign & { _count: { claims: number } }) | null;
 
     if (!campaign) {
       return NextResponse.json(
@@ -31,7 +34,7 @@ export async function POST(
       );
     }
 
-    const slotNumber = campaign.claims.length + 1;
+    const slotNumber = campaign._count.claims + 1;
     const tiers = campaign.tiers as unknown as RewardTier[];
     let usdcAmount: bigint;
 
@@ -61,6 +64,9 @@ export async function POST(
       });
     }
 
+    // Invalidate the cached status response so the post-claim refetch is fresh.
+    await cacheDelete(`status:v2:${params.id}`);
+
     return NextResponse.json({
       claim: {
         ...claim,
@@ -76,3 +82,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withUsage("/api/campaigns/[id]/claim", handler);

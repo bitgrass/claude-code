@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Campaign, Claim } from "@prisma/client";
+import type { Campaign } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import { signClaimAuthorization } from "@/lib/signer";
 import { getRelayerWalletClient, publicClient, CONTRACT_ADDRESS, QRBASE_AIRDROP_ABI } from "@/lib/contract";
-import { getFarcasterPrimaryWallet } from "@/lib/neynar";
+import { getFarcasterWallets } from "@/lib/neynar";
 import { evaluateEligibility } from "@/lib/eligibility";
-import { rateLimit } from "@/lib/redis";
+import { rateLimit, cacheDelete } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 import type { EligibilityRule, RewardTier } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
+async function handler(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -20,11 +21,13 @@ export async function POST(
       twitterId,
       twitterHandle,
       recipientWallet,  // user's Privy-linked wallet
+      solanaWallet = "", // Privy embedded Solana wallet (Twitter path)
       platform = "twitter",
     } = await req.json() as {
       twitterId: string;
       twitterHandle: string;
       recipientWallet: string;
+      solanaWallet?: string;
       platform?: "twitter" | "farcaster";
     };
 
@@ -38,28 +41,33 @@ export async function POST(
       return NextResponse.json({ error: "Too many requests. Try again in a minute." }, { status: 429 });
     }
 
-    // Load campaign
+    // Load campaign — only the claim count is needed (slot index + full check);
+    // the already-claimed check below is a separate targeted query.
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
-      include: { claims: true },
-    }) as (Campaign & { claims: Claim[] }) | null;
+      include: { _count: { select: { claims: true } } },
+    }) as (Campaign & { _count: { claims: number } }) | null;
 
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     if (!campaign.isActive) return NextResponse.json({ error: "campaign_closed" }, { status: 400 });
-    if (campaign.claims.length >= campaign.maxRecipients) {
+    const claimedCount = campaign._count.claims;
+    if (claimedCount >= campaign.maxRecipients) {
       return NextResponse.json({ error: "campaign_full" }, { status: 400 });
     }
 
-    // Resolve actual recipient before the already_claimed check
-    // For Farcaster: use Neynar primary verified address (not custody address from client)
+    // Resolve actual recipient before the already_claimed check.
+    // For Farcaster: use the Neynar verified wallets — EVM as recipient + EVM
+    // balance wallet, Solana for SPL-token holds.
     let recipient = recipientWallet;
     let balanceWallet = recipientWallet;
+    let solanaBalanceWallet = solanaWallet;
     if (platform === "farcaster") {
-      const neynarWallet = await getFarcasterPrimaryWallet(Number(twitterId));
-      if (neynarWallet) {
-        recipient = neynarWallet;
-        balanceWallet = neynarWallet;
+      const fc = await getFarcasterWallets(Number(twitterId));
+      if (fc.eth) {
+        recipient = fc.eth;
+        balanceWallet = fc.eth;
       }
+      if (fc.sol) solanaBalanceWallet = fc.sol;
     }
 
     // Check already claimed
@@ -75,19 +83,24 @@ export async function POST(
     // Re-verify eligibility server-side (fresh, no cache)
     const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
     const gameHandle = platform === "farcaster" ? twitterId : twitterHandle;
-    const { eligible, checks } = await evaluateEligibility(rules, gameHandle, balanceWallet, platform);
+    const { eligible, checks } = await evaluateEligibility(rules, gameHandle, balanceWallet, platform, solanaBalanceWallet);
 
     if (!eligible) {
       return NextResponse.json({ eligible: false, checks }, { status: 403 });
     }
 
-    if (!recipient) {
-      return NextResponse.json({ error: "No recipient wallet resolved. Please link a wallet to your account." }, { status: 400 });
+    // The reward is USDC on Base — the recipient MUST be a valid EVM address.
+    // (Solana wallets are used only for the eligibility balance check, never here.)
+    if (!recipient || !/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      return NextResponse.json(
+        { error: "No EVM wallet found to receive the USDC reward. Please link an Ethereum wallet to your account." },
+        { status: 400 }
+      );
     }
 
     // Calculate reward amount
     const tiers = campaign.tiers as unknown as RewardTier[];
-    const slotIndex = campaign.claims.length;
+    const slotIndex = claimedCount;
     const claimAmount = BigInt(
       tiers.length === 1 ? tiers[0].amount : (tiers[slotIndex]?.amount || 0)
     );
@@ -132,6 +145,9 @@ export async function POST(
       });
     }
 
+    // Invalidate cached status so slot count/recent claimants refresh promptly.
+    await cacheDelete(`status:v2:${params.id}`);
+
     return NextResponse.json({ txHash, claimAmount: claimAmount.toString(), recipientAddress: recipient });
   } catch (error) {
     console.error("server-claim error:", error);
@@ -141,3 +157,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withUsage("/api/campaigns/[id]/server-claim", handler);

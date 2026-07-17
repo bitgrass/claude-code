@@ -4,28 +4,69 @@ import { getDb } from "@/lib/db";
 import type { RewardTier } from "@/types";
 import { getFarcasterUsers } from "@/lib/neynar";
 import { resolveClaimIdentity } from "@/lib/claimants";
+import { cacheGet, cacheSet } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
+// This endpoint is polled by every open claim page, so it is the single biggest
+// source of Prisma Accelerate operations. Two optimisations:
+//   1. One query instead of three — campaign + claim count + recent claims are
+//      fetched in a single findUnique using `_count` and a `claims` relation.
+//   2. A short Redis response cache (RESPONSE_CACHE_TTL) so that many viewers
+//      polling the same campaign collapse onto one Prisma query per window —
+//      cache hits cost zero Accelerate operations.
+// 60s so that repeated polls of the same campaign collapse onto ~1 Prisma
+// query per minute regardless of how aggressively it is polled (a lone poller
+// at ~30s missed the old 15s cache every time). Safe because the cache is
+// explicitly invalidated whenever a claim is recorded or a campaign is closed.
+const RESPONSE_CACHE_TTL = 60; // seconds
+
+async function handler(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const cacheKey = `status:v2:${params.id}`;
+  const cached = await cacheGet<Record<string, unknown>>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "no-store", "x-usage-cache": "hit" },
+    });
+  }
+
   const prisma = getDb();
-  const [campaign, claimedCount, recentClaims] = await Promise.all([
-    prisma.campaign.findUnique({ where: { id: params.id } }) as Promise<Campaign | null>,
-    prisma.claim.count({ where: { campaignId: params.id } }),
-    prisma.claim.findMany({
-      where: { campaignId: params.id },
-      orderBy: [{ slotNumber: "desc" }, { claimedAt: "desc" }],
-      take: 10,
-    }) as Promise<Claim[]>,
-  ]);
+  const campaign = (await prisma.campaign.findUnique({
+    where: { id: params.id },
+    include: {
+      _count: { select: { claims: true } },
+      claims: {
+        orderBy: [{ slotNumber: "desc" }, { claimedAt: "desc" }],
+        take: 10,
+        select: {
+          twitterId: true,
+          twitterHandle: true,
+          slotNumber: true,
+          claimedAt: true,
+          usdcAmount: true,
+        },
+      },
+    },
+  })) as
+    | (Campaign & {
+        _count: { claims: number };
+        claims: Pick<
+          Claim,
+          "twitterId" | "twitterHandle" | "slotNumber" | "claimedAt" | "usdcAmount"
+        >[];
+      })
+    | null;
 
   if (!campaign) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
+  const claimedCount = campaign._count.claims;
+  const recentClaims = campaign.claims;
   const slotsRemaining = campaign.maxRecipients - claimedCount;
   const tiers = campaign.tiers as unknown as RewardTier[];
 
@@ -49,15 +90,22 @@ export async function GET(
     resolveClaimIdentity(cl, farcasterUsers)
   );
 
-  return NextResponse.json(
-    {
-      slotsRemaining,
-      totalSlots: campaign.maxRecipients,
-      claimedCount,
-      nextRewardAmount,
-      isActive: campaign.isActive,
-      recentClaims: enrichedClaims,
-    },
-    { headers: { "Cache-Control": "no-store" } }
-  );
+  const payload = {
+    slotsRemaining,
+    totalSlots: campaign.maxRecipients,
+    claimedCount,
+    nextRewardAmount,
+    isActive: campaign.isActive,
+    recentClaims: enrichedClaims,
+  };
+
+  // Short-lived cache so polling traffic doesn't re-run this query for every
+  // viewer. Public, non-sensitive data — safe to share across users.
+  await cacheSet(cacheKey, payload, RESPONSE_CACHE_TTL);
+
+  return NextResponse.json(payload, {
+    headers: { "Cache-Control": "no-store", "x-usage-cache": "miss" },
+  });
 }
+
+export const GET = withUsage("/api/campaigns/[id]/status", handler);

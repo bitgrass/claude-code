@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getAdminBaseAccount } from "@/lib/cdpWallet";
 import { getDb } from "@/lib/db";
+import { isAdminRequest } from "@/lib/adminAuth";
+import { withUsage } from "@/lib/usage/track";
 import type { EligibilityRule, RewardTier } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/admin/campaigns — List all campaigns
-export async function GET(req: NextRequest) {
-  const apiKey = req.headers.get("x-api-key");
-  if (!process.env.ADMIN_API_KEY || apiKey !== process.env.ADMIN_API_KEY) {
+async function listCampaigns(req: NextRequest) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -23,19 +24,37 @@ export async function GET(req: NextRequest) {
   const prisma = getDb();
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      onChainId: true,
+      name: true,
+      totalUsdc: true,
+      maxRecipients: true,
+      isActive: true,
+      createdAt: true,
+      closedAt: true,
+      creatorWallet: true,
+      eligibilityRules: true,
+    },
   });
 
-  const claimCounts = await Promise.all(
-    campaigns.map((c) => prisma.claim.count({ where: { campaignId: c.id } }))
+  // Single grouped count instead of one count query per campaign (was N+1).
+  const grouped = (await prisma.claim.groupBy({
+    by: ["campaignId"],
+    where: { campaignId: { in: campaigns.map((c) => c.id) } },
+    _count: { _all: true },
+  })) as Array<{ campaignId: string; _count: { _all: number } }>;
+  const countByCampaign = new Map<string, number>(
+    grouped.map((g) => [g.campaignId, g._count._all])
   );
 
-  const withMeta = campaigns.map((c, i) => ({
+  const withMeta = campaigns.map((c) => ({
     id: c.id,
     onChainId: c.onChainId,
     name: c.name,
     totalUsdc: c.totalUsdc.toString(),
     maxRecipients: c.maxRecipients,
-    claimedCount: claimCounts[i],
+    claimedCount: countByCampaign.get(c.id) ?? 0,
     isActive: c.isActive,
     createdAt: c.createdAt.toISOString(),
     closedAt: c.closedAt?.toISOString() ?? null,
@@ -53,8 +72,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ campaigns: sorted });
 }
 
+export const GET = withUsage("/api/admin/campaigns", listCampaigns);
+
 // POST /api/admin/campaigns — Create campaign on-chain + in DB
-export async function POST(req: NextRequest) {
+async function createCampaign(req: NextRequest) {
   const prisma = getDb();
   try {
     const body = await req.json();
@@ -133,3 +154,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withUsage("/api/admin/campaigns", createCampaign);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settingGet, settingSet, settingDelete } from "@/lib/redis";
 import { getDb } from "@/lib/db";
+import { withUsage } from "@/lib/usage/track";
 
 const FEATURED_KEY = "admin:featured_campaign_id";
 
@@ -42,7 +43,7 @@ async function fetchScanModeProgress(partnerName: string): Promise<ScanModeProgr
 }
 
 // GET /api/admin/featured — returns current featured campaign + scanMode progress
-export async function GET() {
+async function getFeatured() {
   const prisma = getDb();
   const campaignId = await settingGet(FEATURED_KEY);
   if (!campaignId) return NextResponse.json({ campaign: null });
@@ -70,7 +71,7 @@ export async function GET() {
 }
 
 // POST /api/admin/featured — set featured campaign
-export async function POST(req: NextRequest) {
+async function setFeatured(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -80,10 +81,14 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/admin/featured — clear featured campaign
-export async function DELETE(req: NextRequest) {
+async function clearFeatured(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   await settingDelete(FEATURED_KEY);
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withUsage("/api/admin/featured", getFeatured);
+export const POST = withUsage("/api/admin/featured", setFeatured);
+export const DELETE = withUsage("/api/admin/featured", clearFeatured);

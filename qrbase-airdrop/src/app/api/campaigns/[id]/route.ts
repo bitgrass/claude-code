@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Campaign } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { withUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/campaigns/[id] — Public campaign info
-export async function GET(
+async function handler(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -47,3 +48,5 @@ export async function GET(
     return NextResponse.json({ error: "Failed to fetch campaign" }, { status: 500 });
   }
 }
+
+export const GET = withUsage("/api/campaigns/[id]", handler);

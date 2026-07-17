@@ -51,6 +51,17 @@ export function useClaimFlow(
           embeddedPrivyWallet)
       : embeddedPrivyWallet;
 
+  // Privy embedded Solana wallet — used to check Solana (SPL) partner-token
+  // holds for X users (Farcaster users are resolved server-side via Neynar).
+  const embeddedSolanaWallet =
+    ((user?.linkedAccounts?.find(
+      (account) =>
+        account.type === "wallet" &&
+        (account as PrivyWalletLike).chainType === "solana"
+    ) as PrivyWalletLike | undefined)?.address) ||
+    privyWallets.find((wallet) => (wallet as PrivyWalletLike).chainType === "solana")?.address ||
+    "";
+
   const login = useCallback(() => {
     if (platform === "twitter") {
       initOAuth({ provider: "twitter" });
@@ -80,6 +91,11 @@ export function useClaimFlow(
           (user?.farcaster?.fid ? String(user.farcaster.fid) : ""))
       : (user?.twitter?.username || "");
 
+  // The identifier qrbase keys game/task data off: Farcaster → fid (fc:<fid>),
+  // Twitter → username (x:<username>). Same logic the eligibility check uses.
+  // NOTE: the Farcaster *username* is NOT recognised by qrbase — must be the fid.
+  const scanHandle = platform === "farcaster" ? userId : userHandle;
+
   const isLoggedIn = authenticated;
 
   const checkEligibility = useCallback(async () => {
@@ -94,6 +110,7 @@ export function useClaimFlow(
         body: JSON.stringify({
           eligibilityWallet: recipientWallet,
           walletAddress: recipientWallet,
+          solanaWallet: embeddedSolanaWallet,
           twitterId: userId,
           twitterHandle: userHandle,
           platform,
@@ -129,31 +146,33 @@ export function useClaimFlow(
       setState("INELIGIBLE");
       setEligibility({ eligible: false, checks: [], reason: "Failed to check eligibility. Please try again." });
     }
-  }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, platform]);
+  }, [campaign, isLoggedIn, userId, userHandle, recipientWallet, embeddedSolanaWallet, platform]);
 
   useEffect(() => {
     if (!ready || !campaign || !authenticated || !userId) {
       eligibilityCheckedRef.current = null;
       return;
     }
-    // Wait for wallet to resolve before checking — on reload, Privy restores
-    // authenticated=true immediately but privyWallets hydrates a tick later,
-    // causing a false "0 balance" check with an empty wallet address.
-    if (!recipientWallet) {
-      setEligibility({ eligible: false, checks: [], reason: "No embedded Privy wallet found for your account." });
-      setState("INELIGIBLE");
-      return;
-    }
-    // User switched Twitter accounts — clear stale data before re-checking
-    if (eligibilityCheckedRef.current !== null && eligibilityCheckedRef.current !== userId) {
+    // Always run the check as soon as we know the user — never short-circuit on a
+    // missing wallet. The wins/level rules resolve from the handle alone, so this
+    // renders every requirement card immediately; only the balance rule depends on
+    // a wallet. Privy hydrates wallets a tick after auth, so we key the "already
+    // checked" ref on the wallets too and re-check once they land — that replaces
+    // the old wait (which left checks empty and showed no cards at all).
+    const checkKey = `${userId}:${recipientWallet}:${embeddedSolanaWallet}`;
+    // User switched accounts — clear stale data before re-checking
+    if (
+      eligibilityCheckedRef.current !== null &&
+      !eligibilityCheckedRef.current.startsWith(`${userId}:`)
+    ) {
       setEligibility(null);
       setState("LOADING");
       setResolvedRecipient(null);
     }
-    if (eligibilityCheckedRef.current === userId) return; // already checked for this user
-    eligibilityCheckedRef.current = userId;
+    if (eligibilityCheckedRef.current === checkKey) return; // already checked for this user+wallets
+    eligibilityCheckedRef.current = checkKey;
     checkEligibility();
-  }, [ready, authenticated, campaign, recipientWallet, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, authenticated, campaign, recipientWallet, embeddedSolanaWallet, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const determineState = useCallback((): ClaimPageState => {
     if (!campaign) return "LOADING";
@@ -183,6 +202,7 @@ export function useClaimFlow(
           twitterId: userId,
           twitterHandle: userHandle,
           recipientWallet,
+          solanaWallet: embeddedSolanaWallet,
           platform,
         }),
       });
@@ -214,6 +234,7 @@ export function useClaimFlow(
     submitClaim,
     recipientWallet: resolvedRecipient || recipientWallet,
     twitterHandle: userHandle || null,
+    scanHandle: scanHandle || null,
     twitterAvatar: platform === "twitter"
       ? (user?.twitter?.profilePictureUrl || null)
       : ((user?.farcaster as unknown as { pfp?: string })?.pfp || null),

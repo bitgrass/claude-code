@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Campaign, Claim } from "@prisma/client";
+import type { Campaign } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import { evaluateEligibility } from "@/lib/eligibility";
-import { getFarcasterPrimaryWallet } from "@/lib/neynar";
+import { getFarcasterWallets } from "@/lib/neynar";
 import { rateLimit, cacheGet, cacheSet } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 import type { EligibilityRule, RewardTier } from "@/types";
 
 // POST /api/campaigns/[id]/eligibility — Check eligibility + sign auth
-export async function POST(
+async function handler(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const prisma = getDb();
   try {
-    const { walletAddress, eligibilityWallet, twitterId, twitterHandle, platform = "twitter" } = await req.json() as {
+    const { walletAddress, eligibilityWallet, solanaWallet = "", twitterId, twitterHandle, platform = "twitter" } = await req.json() as {
       walletAddress: string;       // claim wallet (RainbowKit) — used for signature
-      eligibilityWallet?: string;  // Privy wallet — used for balance check
+      eligibilityWallet?: string;  // Privy EVM wallet — used for EVM balance check
+      solanaWallet?: string;       // Privy embedded Solana wallet — for Solana token holds
       twitterId: string;
       twitterHandle: string;
       platform?: "twitter" | "farcaster";
@@ -41,11 +43,12 @@ export async function POST(
       );
     }
 
-    // Get campaign
+    // Get campaign. Use _count instead of fetching all claim rows — only the
+    // claim total is needed for the slots-available check and slot index.
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
-      include: { claims: true },
-    }) as (Campaign & { claims: Claim[] }) | null;
+      include: { _count: { select: { claims: true } } },
+    }) as (Campaign & { _count: { claims: number } }) | null;
 
     if (!campaign) {
       return NextResponse.json(
@@ -80,7 +83,8 @@ export async function POST(
     }
 
     // Check if slots available
-    if (campaign.claims.length >= campaign.maxRecipients) {
+    const claimedCount = campaign._count.claims;
+    if (claimedCount >= campaign.maxRecipients) {
       return NextResponse.json({
         eligible: false,
         checks: [],
@@ -88,19 +92,22 @@ export async function POST(
       });
     }
 
-    // For Farcaster: fetch primary verified ETH address from Neynar (wallet set as primary in Warpcast)
-    // For Twitter: use the Privy-linked wallet sent from the client
+    // For Farcaster: fetch the user's verified wallets (EVM + Solana) from Neynar
+    //   — EVM for EVM-token holds and as reward recipient, Solana for SPL-token holds.
+    // For Twitter: use the Privy-linked wallets sent from the client.
     let balanceWallet = eligibilityWallet || walletAddress || "";
+    let solanaBalanceWallet = solanaWallet;
     if (platform === "farcaster" && twitterId) {
-      const neynarWallet = await getFarcasterPrimaryWallet(Number(twitterId));
-      if (neynarWallet) balanceWallet = neynarWallet;
+      const fc = await getFarcasterWallets(Number(twitterId));
+      if (fc.eth) balanceWallet = fc.eth;
+      if (fc.sol) solanaBalanceWallet = fc.sol;
     }
 
     const rules = campaign.eligibilityRules as unknown as EligibilityRule[];
     const hasSocialTasks = rules.some((rule) => rule.type === "social_task");
 
     // Check cached result. Social task completion can change immediately.
-    const cacheKey = `eligibility:${params.id}:${twitterId}:${balanceWallet}`;
+    const cacheKey = `eligibility:${params.id}:${twitterId}:${balanceWallet}:${solanaBalanceWallet}`;
     const cached = hasSocialTasks
       ? null
       : await cacheGet<{
@@ -119,7 +126,8 @@ export async function POST(
         rules,
         gameStatusHandle,
         balanceWallet,
-        platform
+        platform,
+        solanaBalanceWallet
       );
       if (!hasSocialTasks) await cacheSet(cacheKey, eligibilityResult, 60);
     }
@@ -133,7 +141,7 @@ export async function POST(
 
     // Determine reward amount for current slot
     const tiers = campaign.tiers as unknown as RewardTier[];
-    const slotIndex = campaign.claims.length;
+    const slotIndex = claimedCount;
     let claimAmount: bigint;
 
     if (tiers.length === 1) {
@@ -157,3 +165,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withUsage("/api/campaigns/[id]/eligibility", handler);

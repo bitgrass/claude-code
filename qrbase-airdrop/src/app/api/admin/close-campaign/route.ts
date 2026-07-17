@@ -4,10 +4,12 @@ import { getAdminBaseAccount } from "@/lib/cdpWallet";
 
 import { CONTRACT_ADDRESS, QRBASE_AIRDROP_ABI, publicClient } from "@/lib/contract";
 import { getDb } from "@/lib/db";
+import { cacheDelete } from "@/lib/redis";
+import { withUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+async function handler(req: NextRequest) {
   const apiKey = req.headers.get("x-api-key");
   if (!process.env.ADMIN_API_KEY || apiKey !== process.env.ADMIN_API_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
         where: { id: campaignId },
         data: { isActive: false, closedAt: new Date() },
       });
+      await cacheDelete(`status:v2:${campaignId}`);
       return NextResponse.json({ ok: true });
     }
 
@@ -50,6 +53,7 @@ export async function POST(req: NextRequest) {
     if (!onChain.isActive) {
       // Already closed on-chain — just sync the DB
       await prisma.campaign.update({ where: { id: campaignId }, data: { isActive: false, closedAt: new Date() } });
+      await cacheDelete(`status:v2:${campaignId}`);
       return NextResponse.json({ ok: true, alreadyClosed: true });
     }
 
@@ -92,6 +96,7 @@ export async function POST(req: NextRequest) {
       where: { id: campaignId },
       data: { isActive: false, closedAt: new Date() },
     });
+    await cacheDelete(`status:v2:${campaignId}`);
 
     return NextResponse.json({
       txHash: transactionHash,
@@ -106,3 +111,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withUsage("/api/admin/close-campaign", handler);
